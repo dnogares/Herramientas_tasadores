@@ -29,4 +29,4 @@ RUN chmod -R 777 outputs capas
 EXPOSE 8080
 
 # Comando para arrancar la app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
