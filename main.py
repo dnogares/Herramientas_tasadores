@@ -21,7 +21,7 @@ from pathlib import Path
 from urban_analysis import AnalizadorUrbanistico
 from vector_analyzer import VectorAnalyzer
 
-app = FastAPI(title="Catastro SaaS Pro API")
+app = FastAPI(title="Catastro-tool")
 
 # 1. CONFIGURACIÓN DE RUTAS (Adaptadas para Docker/Easypanel)
 BASE_DIR = Path(__file__).resolve().parent
