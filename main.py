@@ -1,6 +1,12 @@
 import os
-import os
+import logging
 from dotenv import load_dotenv
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info("=== INICIANDO APLICACIÓN ===")
 
 # Carga el archivo .env si existe (para desarrollo local)
 load_dotenv()
@@ -8,14 +14,18 @@ load_dotenv()
 # Variables de configuración
 DEBUG = os.getenv("DEBUG", "False") == "True"
 PORT = int(os.getenv("PORT", 8080))
-# Ejemplo de API Key futura
 CATASTRO_API_TOKEN = os.getenv("CATASTRO_TOKEN", "default_secret")
+
+logger.info(f"DEBUG: {DEBUG}, PORT: {PORT}")
+
 import json
 import shutil
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+
+logger.info("Importaciones básicas completadas")
 
 # Importación de tus módulos locales
 from urban_analysis import AnalizadorUrbanistico
