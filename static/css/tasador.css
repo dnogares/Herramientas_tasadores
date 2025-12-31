@@ -1,0 +1,243 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ESTILOS BASE Y VARIABLES
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+    --primary: #1e3a5f;
+    /* Azul Profundo */
+    --secondary: #4a5568;
+    /* Gris Pizarra */
+    --accent: #e8b923;
+    /* Oro / Acento */
+    --success: #2ecc71;
+    /* Verde éxito */
+    --danger: #e74c3c;
+    /* Rojo peligro */
+    --light: #f7fafc;
+    /* Fondo claro */
+    --white: #ffffff;
+    --border: #e2e8f0;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--light);
+    color: var(--secondary);
+    line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYOUT (ESTRUCTURA)
+   ══════════════════════════════════════════════════════════════════════════ */
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 260px;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    height: 100vh;
+}
+
+.main-content {
+    flex: 1;
+    margin-left: 260px;
+    padding-bottom: 50px;
+}
+
+.content-padding {
+    padding: 30px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COMPONENTES: CARDS Y CABECERAS
+   ══════════════════════════════════════════════════════════════════════════ */
+.card {
+    background: var(--white);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 15px 20px;
+    background: #fcfcfc;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.card-header h3 {
+    font-size: 1.1rem;
+    color: var(--primary);
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FORMULARIOS Y BOTONES
+   ══════════════════════════════════════════════════════════════════════════ */
+.input-main,
+.textarea-main {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    margin-top: 5px;
+}
+
+.input-main:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    gap: 10px;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2a4a75;
+    transform: translateY(-1px);
+}
+
+.btn-success {
+    background: var(--success);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #27ae60;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--secondary);
+    border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+    background: #f1f5f9;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   VISOR DE LOGS Y TABLAS
+   ══════════════════════════════════════════════════════════════════════════ */
+.log-container {
+    background: #1a202c;
+    color: #a0aec0;
+    padding: 15px;
+    height: 300px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    border-left: 3px solid #4a5568;
+    padding-left: 10px;
+}
+
+.log-success {
+    border-color: var(--success);
+    color: #68d391;
+}
+
+.log-error {
+    border-color: var(--danger);
+    color: #fc8181;
+}
+
+.table-pro {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-pro th {
+    text-align: left;
+    padding: 12px;
+    background: #f8fafc;
+    border-bottom: 2px solid var(--border);
+}
+
+.table-pro td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MISC (UTILIDADES)
+   ══════════════════════════════════════════════════════════════════════════ */
+.badge-accent {
+    background: var(--accent);
+    color: var(--primary);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+.flex {
+    display: flex;
+}
+
+.gap-md {
+    gap: 20px;
+}
+
+.mt-md {
+    margin-top: 20px;
+}
+
+.w-full {
+    width: 100%;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card {
+    animation: fadeIn 0.4s ease-out;
+}

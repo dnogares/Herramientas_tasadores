@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Visor GIS Avanzado | Catastro SaaS Pro</title>
+    <link rel="stylesheet" href="css/tasador.css">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
+
+    <style>
+        #map-container {
+            height: calc(100vh - 70px);
+            width: 100%;
+            position: relative;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .map-overlay-tools {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 280px;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <header class="app-header">
+        <div class="flex items-center gap-md">
+            <a href="index.html" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> Volver</a>
+            <h1>Visor de Análisis Espacial</h1>
+        </div>
+        <div id="active-ref-display" class="badge-info">Ref: Cargando...</div>
+    </header>
+
+    <div id="map-container">
+        <div id="map"></div>
+
+        <div class="map-overlay-tools">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h4>🔍 Capas de Análisis</h4>
+                </div>
+                <div class="card-body">
+                    <div class="flex flex-col gap-sm">
+                        <label class="switch-item">
+                            <input type="checkbox" id="layer-catastro" checked>
+                            <span>Capa Catastral (WMS)</span>
+                        </label>
+                        <label class="switch-item">
+                            <input type="checkbox" id="layer-afecciones" checked>
+                            <span>Afecciones Detectadas</span>
+                        </label>
+                        <hr>
+                        <button onclick="zoomToParcela()" class="btn btn-secondary btn-sm w-full">
+                            🎯 Centrar en Parcela
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mt-md">
+                <div class="card-header">
+                    <h4>📊 Leyenda</h4>
+                </div>
+                <div class="card-body text-xs">
+                    <div class="flex items-center gap-sm mb-xs">
+                        <span
+                            style="display:inline-block; width:15px; height:15px; background:red; border:1px solid black;"></span>
+                        <span>Parcela Analizada</span>
+                    </div>
+                    <div class="flex items-center gap-sm">
+                        <span
+                            style="display:inline-block; width:15px; height:15px; background:rgba(0,0,255,0.3); border:1px solid blue;"></span>
+                        <span>Zona de Afección</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- LÓGICA DEL VISOR GIS ---
+        let map;
+        let parcelaLayer;
+
+        function initMap() {
+            // 1. Inicializar mapa centrado en España
+            map = L.map('map').setView([40.4167, -3.7033], 6);
+
+            // 2. Mapas Base
+            const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+
+            // 3. WMS Catastro Oficial
+            const catastroWMS = L.tileLayer.wms("https://ovc.catastro.meh.es/ovcservweb/ovcwms/ovcwms.ashx", {
+                layers: 'Catastro',
+                format: 'image/png',
+                transparent: true,
+                attribution: "Sede Electrónica del Catastro"
+            }).addTo(map);
+
+            // Control de capas base
+            L.control.layers({
+                "Callejero (OSM)": osm,
+                "Satélite (Esri)": satelite
+            }).addTo(map);
+
+            loadParcela();
+        }
+
+        async function loadParcela() {
+            const ref = localStorage.getItem('catastro_current_ref');
+            if (!ref) return;
+
+            document.getElementById('active-ref-display').innerText = `Ref: ${ref}`;
+
+            // Cargar el KML generado por el servidor
+            const kmlUrl = `/outputs/${ref}/${ref}.kml`;
+
+            parcelaLayer = omnivore.kml(kmlUrl)
+                .on('ready', function () {
+                    map.fitBounds(this.getBounds());
+                    this.setStyle({
+                        color: "#ff0000",
+                        weight: 3,
+                        fillOpacity: 0.1
+                    });
+                })
+                .addTo(map);
+        }
+
+        function zoomToParcela() {
+            if (parcelaLayer) map.fitBounds(parcelaLayer.getBounds());
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+geopandas
+matplotlib
+shapely
+fiona
+pandas
+fpdf
+python-multipart

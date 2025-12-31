@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración de Informe | Catastro SaaS Pro</title>
+    <link rel="stylesheet" href="css/tasador.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .report-container {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 25px;
+            padding: 25px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Selector de Mapas */
+        .maps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .map-item {
+            position: relative;
+            border: 3px solid #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            background: #fff;
+        }
+
+        .map-item img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .map-item.selected {
+            border-color: #2ecc71;
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(46, 204, 113, 0.2);
+        }
+
+        .map-info {
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            background: #f8f9fa;
+        }
+
+        .selection-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #2ecc71;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            z-index: 2;
+        }
+
+        .map-item.selected .selection-badge {
+            display: flex;
+        }
+
+        /* Dropzone para Logo */
+        .logo-upload {
+            border: 2px dashed #cbd5e0;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .logo-upload:hover {
+            background: #edf2f7;
+            border-color: #4a5568;
+        }
+
+        @media (max-width: 1024px) {
+            .report-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <header class="app-header">
+        <div class="flex items-center gap-md">
+            <a href="index.html" class="btn btn-ghost"><i class="fas fa-chevron-left"></i></a>
+            <h1><i class="fas fa-file-contract"></i> Editor de Informe Técnico</h1>
+        </div>
+        <div id="active-ref-tag" class="badge-accent">Cargando referencia...</div>
+    </header>
+
+    <div class="report-container">
+
+        <aside class="sidebar-form">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-tie"></i> Datos del Firmante</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-group mb-md">
+                        <label>Empresa / Gabinete Técnico</label>
+                        <input type="text" id="company-name" class="input-main" placeholder="Nombre de la empresa">
+                    </div>
+
+                    <div class="form-group mb-md">
+                        <label>Nombre del Técnico Especialista</label>
+                        <input type="text" id="tech-name" class="input-main" placeholder="Firma autorizada">
+                    </div>
+
+                    <div class="form-group mb-md">
+                        <label>Número de Colegiado</label>
+                        <input type="text" id="tech-id" class="input-main" placeholder="Nº de colegiación oficial">
+                    </div>
+
+                    <div class="form-group mb-md">
+                        <label>Logo Corporativo</label>
+                        <div class="logo-upload" onclick="document.getElementById('logo-input').click()">
+                            <i class="fas fa-cloud-upload-alt fa-2x mb-sm"></i>
+                            <p id="logo-status">Click para subir imagen</p>
+                            <input type="file" id="logo-input" hidden accept="image/*" onchange="updateLogoStatus()">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Observaciones y Notas Técnicas</label>
+                        <textarea id="additional-notes" class="textarea-main" rows="6"
+                            placeholder="Añada aquí las conclusiones del análisis de afecciones..."></textarea>
+                    </div>
+
+                    <button id="btn-generate" onclick="ReportBuilder.sendToGeneratePDF()"
+                        class="btn btn-success btn-lg w-full mt-lg">
+                        <i class="fas fa-file-pdf"></i> GENERAR PDF FINAL
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <section class="main-report-content">
+            <div class="card shadow-sm">
+                <div class="card-header flex justify-between items-center">
+                    <h3><i class="fas fa-images"></i> Evidencias Gráficas Disponibles</h3>
+                    <span class="text-muted text-sm" id="selection-counter">0 mapas seleccionados</span>
+                </div>
+                <div class="card-body">
+                    <p class="mb-lg">Seleccione los planos que desea incluir en los anexos del informe técnico:</p>
+
+                    <div id="maps-selector-grid" class="maps-grid">
+                        <div class="text-center py-xl w-full">
+                            <i class="fas fa-spinner fa-spin fa-3x mb-md"></i>
+                            <p>Buscando mapas generados...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="js/tasador.js"></script>
+    <script>
+        // Actualizar visualmente el estado del logo
+        function updateLogoStatus() {
+            const input = document.getElementById('logo-input');
+            const status = document.getElementById('logo-status');
+            if (input.files.length > 0) {
+                status.innerHTML = `<span class="text-success">✅ ${input.files[0].name}</span>`;
+            }
+        }
+
+        // Mostrar la referencia activa al cargar
+        document.addEventListener('DOMContentLoaded', () => {
+            const ref = localStorage.getItem('catastro_current_ref');
+            if (ref) {
+                document.getElementById('active-ref-tag').innerText = `Referencia: ${ref}`;
+            }
+        });
+    </script>
+</body>
+
+</html>
