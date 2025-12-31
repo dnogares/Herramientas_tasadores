@@ -1,4 +1,9 @@
+import matplotlib
+matplotlib.use('Agg')  # Backend sin GUI para Docker
+import matplotlib.pyplot as plt
+plt.ioff()  # Desactivar modo interactivo
 import os
+import sys
 import logging
 from dotenv import load_dotenv
 
