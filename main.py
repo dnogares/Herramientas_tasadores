@@ -1,4 +1,15 @@
 import os
+import os
+from dotenv import load_dotenv
+
+# Carga el archivo .env si existe (para desarrollo local)
+load_dotenv()
+
+# Variables de configuración
+DEBUG = os.getenv("DEBUG", "False") == "True"
+PORT = int(os.getenv("PORT", 8080))
+# Ejemplo de API Key futura
+CATASTRO_API_TOKEN = os.getenv("CATASTRO_TOKEN", "default_secret")
 import json
 import shutil
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
