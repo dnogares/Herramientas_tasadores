@@ -114,8 +114,9 @@ class AnalizadorUrbanistico:
                     logger.warning(f"Error GeoPandas KML: {e}")
 
             if not kml_generado and not kml_path.exists():
-                logger.info(f"Generando KML básico para {ref}")
-                self._generar_kml_basico(ref, kml_path, coordenadas)
+                logger.info(f"Generando GeoJSON básico para {ref}")
+                # Actualizamos kml_path a la ruta del nuevo GeoJSON
+                kml_path = Path(self._generar_geojson_basico(ref, kml_path, coordenadas))
 
             wms_layers = {}
             if coordenadas and isinstance(coordenadas, dict):
@@ -146,51 +147,45 @@ class AnalizadorUrbanistico:
             logger.error(f"Error al obtener datos de {referencia}: {e}")
             return {"referencia": referencia, "status": "error", "message": str(e)}
 
-    def _generar_kml_basico(self, referencia: str, output_path: Path, coords: Optional[dict] = None):
+    def _generar_geojson_basico(self, referencia: str, output_path: Path, coords: Optional[dict] = None) -> str:
         """
-        Crea un archivo KML con la estructura necesaria para Leaflet.
-        Si se proporcionan coordenadas, centra el polígono en ellas; si no, usa Madrid como fallback.
+        Crea un archivo GeoJSON básico (cuadrado alrededor del centro) para análisis
+        cuando fallan los drivers KML o la descarga GML.
         """
         # Coordenadas por defecto (Madrid) si no se proporcionan
         lat = coords.get("lat") if coords and isinstance(coords, dict) else 40.416775
         lon = coords.get("lon") if coords and isinstance(coords, dict) else -3.70379
 
-        # Generar un pequeño polígono alrededor de las coordenadas
-        delta = 0.001  # ~100m
-        coords_poly = [
-            f"{lon},{lat}",
-            f"{lon},{lat+delta}",
-            f"{lon+delta},{lat+delta}",
-            f"{lon+delta},{lat}",
-            f"{lon},{lat}"
-        ]
-        coords_str = " ".join(coords_poly)
-
-        kml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>{referencia}</name>
-    <Placemark>
-      <name>Parcela {referencia}</name>
-      <description>Referencia Catastral: {referencia}</description>
-      <Style>
-        <LineStyle><color>ff0000ff</color><width>2</width></LineStyle>
-        <PolyStyle><fill>0</fill></PolyStyle>
-      </Style>
-      <Polygon>
-        <outerBoundaryIs>
-          <LinearRing>
-            <coordinates>
-              {coords_str}
-            </coordinates>
-          </LinearRing>
-        </outerBoundaryIs>
-      </Polygon>
-    </Placemark>
-  </Document>
-</kml>"""
+        # Generar un pequeño polígono (cuadrado ~100x100m) alrededor de las coordenadas
+        delta = 0.001 
+        
+        # GeoJSON Structure
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": {"referencia": referencia},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [lon, lat],
+                        [lon + delta, lat],
+                        [lon + delta, lat + delta],
+                        [lon, lat + delta],
+                        [lon, lat]
+                    ]]
+                }
+            }]
+        }
+        
+        # Cambiar extensión a .geojson si venía como .kml
+        if output_path.suffix.lower() == '.kml':
+            output_path = output_path.with_suffix('.geojson')
+            
         with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(kml_content)
+            json.dump(geojson, f)
+            
+        return str(output_path)
 
     def _safe_get(self, url: str, params: Optional[dict] = None, timeout: int = 30, max_retries: int = 2):
         last_exc = None
