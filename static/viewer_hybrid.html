@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catastro SaaS Pro | Visor GIS</title>
+    <link rel="stylesheet" href="/static/css/tasador_enhanced.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        .viewer-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            height: calc(100vh - 200px);
+            margin: 20px 0;
+        }
+        
+        .layers-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            overflow-y: auto;
+            max-height: 100%;
+        }
+        
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 600px;
+        }
+        
+        .reference-selector {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            padding: 20px;
+            border-radius: 12px 12px 0 0;
+            margin-bottom: 20px;
+        }
+        
+        .reference-selector h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+        }
+        
+        .reference-selector select {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .layer-item {
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        
+        .layer-item:hover {
+            background: #f0f7ff;
+            border-color: var(--primary);
+            transform: translateX(2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .layer-item.active {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f0f7ff 100%);
+            border-color: var(--primary);
+            border-left: 4px solid var(--accent);
+        }
+        
+        .layer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .layer-title {
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 1rem;
+        }
+        
+        .layer-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .status-solapado {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .status-descargado {
+            background: var(--success);
+            color: white;
+        }
+        
+        .status-generado {
+            background: var(--info);
+            color: white;
+        }
+        
+        .layer-details {
+            font-size: 0.9rem;
+            color: var(--secondary);
+            line-height: 1.4;
+        }
+        
+        .layer-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .layer-action-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            color: var(--secondary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .layer-action-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .analysis-summary {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+        
+        .summary-title {
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .summary-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        
+        .summary-label {
+            font-size: 0.85rem;
+            color: var(--secondary);
+        }
+        
+        .summary-value {
+            font-weight: bold;
+            color: var(--primary);
+        }
+        
+        .coordinates-info {
+            background: #e3f2fd;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .coordinates-info h4 {
+            margin: 0 0 8px 0;
+            color: var(--primary);
+            font-size: 0.9rem;
+        }
+        
+        .coord-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+        }
+        
+        .coord-label {
+            color: var(--secondary);
+        }
+        
+        .coord-value {
+            font-family: monospace;
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .no-analysis {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--secondary);
+        }
+        
+        .no-analysis i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: var(--border);
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .map-control-btn {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .map-control-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .opacity-control {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .opacity-control.active {
+            display: block;
+        }
+        
+        .opacity-label {
+            font-size: 0.85rem;
+            color: var(--secondary);
+            margin-bottom: 8px;
+        }
+        
+        .opacity-slider {
+            width: 150px;
+        }
+        
+        @media (max-width: 768px) {
+            .viewer-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+            }
+            
+            .layers-panel {
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <div class="app-layout">
+
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>GEO-TASADOR <strong>PRO</strong></span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="/static/index_hybrid.html" class="nav-item">
+                    <i class="fas fa-home"></i> Panel Principal
+                </a>
+                <a href="/static/viewer_hybrid.html" class="nav-item active">
+                    <i class="fas fa-layer-group"></i> Visor GIS
+                </a>
+                <a href="/static/urban_analysis.html" class="nav-item">
+                    <i class="fas fa-city"></i> Análisis Urbanístico
+                </a>
+                <a href="/static/report_complete.html" class="nav-item">
+                    <i class="fas fa-file-pdf"></i> Informes
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>Versión Híbrida 2.0.25</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+
+            <header class="top-bar">
+                <div class="user-info">
+                    <span id="status-badge" class="badge badge-online">Visor GIS</span>
+                </div>
+            </header>
+
+            <div class="content-padding">
+
+                <section class="welcome-section">
+                    <h1>Visor GIS Interactivo</h1>
+                    <p class="text-muted">Visualización y análisis de capas catastrales y afectaciones</p>
+                </section>
+
+                <div class="viewer-container">
+                    <!-- Panel de capas -->
+                    <div class="layers-panel">
+                        <!-- Selector de referencia -->
+                        <div class="reference-selector">
+                            <h3><i class="fas fa-map-pin"></i> Referencia Catastral</h3>
+                            <select id="reference-select" onchange="loadReferenceData()">
+                                <option value="">Selecciona una referencia...</option>
+                            </select>
+                        </div>
+
+                        <!-- Contenido dinámico -->
+                        <div id="viewer-content">
+                            <div class="no-analysis">
+                                <i class="fas fa-map-marked-alt"></i>
+                                <h3>Sin análisis seleccionado</h3>
+                                <p>Selecciona una referencia catastral para visualizar los resultados del análisis</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor del mapa -->
+                    <div class="map-container">
+                        <div id="map"></div>
+                        
+                        <!-- Controles del mapa -->
+                        <div class="map-controls">
+                            <div class="map-control-btn" onclick="zoomIn()" title="Acercar">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                            <div class="map-control-btn" onclick="zoomOut()" title="Alejar">
+                                <i class="fas fa-minus"></i>
+                            </div>
+                            <div class="map-control-btn" onclick="fitBounds()" title="Ajustar vista">
+                                <i class="fas fa-expand"></i>
+                            </div>
+                            <div class="map-control-btn" onclick="toggleFullscreen()" title="Pantalla completa">
+                                <i class="fas fa-expand-arrows-alt"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Control de opacidad permanente -->
+                        <div class="opacity-control" id="opacity-control">
+                            <div class="opacity-label">Opacidad de capa</div>
+                            <input type="range" class="opacity-slider" id="opacity-slider" min="0" max="100" value="80" onchange="updateOpacity(this.value)">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/viewer_hybrid_fixed.js"></script>
+</body>
+
+</html>

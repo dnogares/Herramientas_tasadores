@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catastro SaaS Pro | Visor GIS</title>
+    <link rel="stylesheet" href="/static/css/tasador_enhanced.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+
+<body class="bg-light">
+
+    <div class="app-layout">
+
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>GEO-TASADOR <strong>PRO</strong></span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="/static/index_hybrid.html" class="nav-item">
+                    <i class="fas fa-home"></i> Panel Principal
+                </a>
+                <a href="/static/viewer_hybrid.html" class="nav-item">
+                    <i class="fas fa-layer-group"></i> Visor GIS
+                </a>
+                <a href="/static/urban_analysis.html" class="nav-item">
+                    <i class="fas fa-city"></i> Análisis Urbanístico
+                </a>
+                <a href="/static/report_complete.html" class="nav-item">
+                    <i class="fas fa-file-pdf"></i> Informes
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>Versión Híbrida 2.0.25</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+
+            <header class="top-bar">
+                <div class="user-info">
+                    <span id="status-badge" class="badge badge-online">Visor GIS</span>
+                </div>
+            </header>
+
+            <div class="content-padding">
+
+                <section class="welcome-section">
+                    <h1>Visor GIS Interactivo</h1>
+                    <p class="text-muted">Visualización y análisis de capas catastrales y afectaciones</p>
+                </section>
+
+                <div class="viewer-container">
+                    <!-- Panel de capas -->
+                    <div class="layers-panel">
+                        <!-- Selector de referencia -->
+                        <div class="reference-selector">
+                            <h3><i class="fas fa-map-pin"></i> Referencia Catastral</h3>
+                            <select id="reference-select" onchange="loadReferenceData()">
+                                <option value="">Selecciona una referencia...</option>
+                            </select>
+                        </div>
+
+                        <!-- Contenido dinámico -->
+                        <div id="viewer-content">
+                            <div class="no-analysis">
+                                <i class="fas fa-map-marked-alt"></i>
+                                <h3>Sin análisis seleccionado</h3>
+                                <p>Selecciona una referencia catastral para visualizar los resultados del análisis</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor del mapa -->
+                    <div class="map-container">
+                        <div id="map"></div>
+                        
+                        <!-- Controles del mapa -->
+                        <div class="map-controls">
+                            <div class="map-control-btn" onclick="zoomIn()" title="Acercar">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                            <div class="map-control-btn" onclick="zoomOut()" title="Alejar">
+                                <i class="fas fa-minus"></i>
+                            </div>
+                            <div class="map-control-btn" onclick="fitBounds()" title="Ajustar vista">
+                                <i class="fas fa-expand"></i>
+                            </div>
+                            <div class="map-control-btn" onclick="toggleFullscreen()" title="Pantalla completa">
+                                <i class="fas fa-expand-arrows-alt"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Control de opacidad -->
+                        <div class="opacity-control" id="opacity-control">
+                            <div class="opacity-label">Opacidad de capa</div>
+                            <input type="range" class="opacity-slider" id="opacity-slider" min="0" max="100" value="80" onchange="updateOpacity(this.value)">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/viewer_hybrid_fixed.js"></script>
+</body>
+
+</html>

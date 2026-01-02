@@ -22,8 +22,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Crear carpetas necesarias y dar permisos
-RUN mkdir -p outputs capas
-RUN chmod -R 777 outputs capas
+RUN mkdir -p outputs
+RUN chmod -R 777 outputs
+
+# NOTA: La carpeta 'capas' se montará como volumen externo en producción
 
 # Exponer el puerto que usa FastAPI
 EXPOSE 8080

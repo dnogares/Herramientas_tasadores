@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  catastro-app:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      # Montar carpeta local de capas H:/data al contenedor
+      - type: bind
+        source: H:/data
+        target: /app/capas
+      # Montar carpeta de outputs para persistencia
+      - type: bind
+        source: ./outputs
+        target: /app/outputs
+    environment:
+      - DEBUG=False
+      - PORT=8080
+      - CATASTRO_TOKEN=your_secret_token_here
+    restart: unless-stopped

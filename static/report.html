@@ -96,6 +96,53 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Grid para tipos de archivo */
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .file-type-card {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+        }
+
+        .file-type-card:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+
+        .file-type-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 16px;
+        }
+
+        .file-type-info h4 {
+            margin: 0 0 4px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .file-count {
+            font-size: 12px;
+            color: #666;
+        }
     </style>
 </head>
 
@@ -151,6 +198,11 @@
                         class="btn btn-success btn-lg w-full mt-lg">
                         <i class="fas fa-file-pdf"></i> GENERAR PDF FINAL
                     </button>
+
+                    <button id="btn-download-complete" onclick="downloadCompleteZip()"
+                        class="btn btn-primary btn-lg w-full mt-md">
+                        <i class="fas fa-download"></i> DESCARGAR TODO COMPLETO
+                    </button>
                 </div>
             </div>
         </aside>
@@ -172,10 +224,25 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card shadow-sm mt-lg">
+                <div class="card-header">
+                    <h3><i class="fas fa-folder-open"></i> Archivos Disponibles por Tipo</h3>
+                </div>
+                <div class="card-body">
+                    <p class="mb-lg">Todos los archivos catastrales organizados por tipo:</p>
+                    <div id="available-files-grid" class="files-grid">
+                        <div class="text-center py-xl w-full">
+                            <i class="fas fa-spinner fa-spin fa-3x mb-md"></i>
+                            <p>Cargando archivos disponibles...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
     </div>
 
-    <script src="static/js/tasador.js"></script>
+    <script src="js/tasador.js"></script>
     <script>
         // Actualizar visualmente el estado del logo
         function updateLogoStatus() {
@@ -186,11 +253,121 @@
             }
         }
 
+        // Validar formulario antes de generar PDF
+        function validateForm() {
+            const company = document.getElementById('company-name').value.trim();
+            const techName = document.getElementById('tech-name').value.trim();
+            const techId = document.getElementById('tech-id').value.trim();
+            
+            if (!company || !techName || !techId) {
+                alert('Por favor, complete todos los datos del firmante antes de generar el PDF.');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Descargar ZIP completo con todos los archivos organizados
+        async function downloadCompleteZip() {
+            const ref = localStorage.getItem('catastro_current_ref');
+            if (!ref) {
+                alert('No hay referencia activa seleccionada.');
+                return;
+            }
+
+            try {
+                // Mostrar progreso
+                const btn = document.getElementById('btn-download-complete');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> DESCARGANDO...';
+                btn.disabled = true;
+
+                const response = await fetch('/api/catastro/complete/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ referencia: ref })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${ref}_completo.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    alert('✅ Descarga completa exitosa');
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Error en descarga: ${error.message || 'Error desconocido'}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error de conexión al descargar archivos');
+            } finally {
+                // Restaurar botón
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Mostrar archivos disponibles por tipo
+        async function loadAvailableFiles() {
+            const ref = localStorage.getItem('catastro_current_ref');
+            if (!ref) return;
+
+            try {
+                // Simular carga de archivos disponibles
+                const fileTypes = {
+                    'json': { icon: 'fa-code', title: 'Archivos JSON', count: 0 },
+                    'kml': { icon: 'fa-map', title: 'Archivos KML', count: 0 },
+                    'gml': { icon: 'fa-globe', title: 'Archivos GML', count: 0 },
+                    'images': { icon: 'fa-image', title: 'Imágenes', count: 0 },
+                    'pdf': { icon: 'fa-file-pdf', title: 'Documentos PDF', count: 0 },
+                    'html': { icon: 'fa-html5', title: 'Informes HTML', count: 0 }
+                };
+
+                // Actualizar UI con archivos disponibles
+                const container = document.getElementById('available-files-grid');
+                if (container) {
+                    container.innerHTML = Object.entries(fileTypes).map(([type, info]) => `
+                        <div class="file-type-card">
+                            <div class="file-type-icon">
+                                <i class="fas ${info.icon}"></i>
+                            </div>
+                            <div class="file-type-info">
+                                <h4>${info.title}</h4>
+                                <span class="file-count">${info.count} archivos</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error cargando archivos:', error);
+            }
+        }
+
+        // Modificar ReportBuilder.sendToGeneratePDF para incluir validación
+        if (typeof ReportBuilder !== 'undefined') {
+            const originalSendToGeneratePDF = ReportBuilder.sendToGeneratePDF;
+            ReportBuilder.sendToGeneratePDF = function() {
+                if (validateForm()) {
+                    originalSendToGeneratePDF.call(this);
+                }
+            };
+        }
+
         // Mostrar la referencia activa al cargar
         document.addEventListener('DOMContentLoaded', () => {
             const ref = localStorage.getItem('catastro_current_ref');
             if (ref) {
                 document.getElementById('active-ref-tag').innerText = `Referencia: ${ref}`;
+                loadAvailableFiles();
             }
         });
     </script>

@@ -1,16 +1,47 @@
 import os
 import json
+import logging
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from shapely.geometry import shape
 import fiona
 from pathlib import Path
+import pyproj
+
+# Configurar logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 class VectorAnalyzer:
     def __init__(self, output_dir="outputs", capas_dir="capas"):
         self.output_dir = Path(output_dir)
         self.capas_dir = Path(capas_dir)
         self.config_titulos = self._cargar_config_titulos()
+
+    def _iter_capa_files(self):
+        if not self.capas_dir.exists():
+            return []
+
+        capa_files = []
+
+        # Buscar recursivamente dentro de subcarpetas (H:/data/*)
+        for p in self.capas_dir.rglob('*'):
+            if not p.is_file():
+                continue
+
+            suffix = p.suffix.lower()
+            if suffix in {'.gpkg', '.geojson'}:
+                capa_files.append(p)
+            elif suffix == '.shp':
+                # Evitar sidecars (.dbf/.shx/etc.). Solo procesamos el .shp.
+                capa_files.append(p)
+
+        return capa_files
 
     def _cargar_config_titulos(self):
         # Configuración de nombres amigables para el informe
@@ -23,49 +54,98 @@ class VectorAnalyzer:
 
     def ejecutar_analisis_completo(self, referencia, kml_path):
         """
-        Ejecuta la intersección espacial y genera los mapas JPG.
+        Ejecuta la intersección espacial y genera los mapas PNG y JSON de afecciones.
         """
         results = []
         carpeta_ref = self.output_dir / referencia
         carpeta_ref.mkdir(parents=True, exist_ok=True)
 
-        # 1. Cargar la parcela (KML)
+        # 1. Cargar la parcela (KML o GeoJSON)
         try:
             parcela_gdf = gpd.read_file(kml_path)
+            if parcela_gdf.crs is None:
+                parcela_gdf = parcela_gdf.set_crs("EPSG:4326")
             # Asegurar sistema de coordenadas proyectado (ej: EPSG:25830 para España)
             if parcela_gdf.crs != "EPSG:25830":
                 parcela_gdf = parcela_gdf.to_crs("EPSG:25830")
         except Exception as e:
-            return {"error": f"Error leyendo KML: {e}"}
+            return {"error": f"Error leyendo archivo de parcela: {e}"}
 
-        # 2. Analizar cada capa disponible en la carpeta /capas
-        for capa_file in os.listdir(self.capas_dir):
-            if capa_file.endswith(('.gpkg', '.geojson', '.shp')):
-                nombre_capa = Path(capa_file).stem
-                ruta_capa = self.capas_dir / capa_file
-                
-                # Procesar intersección
-                info_interseccion = self._analizar_capa_especifica(parcela_gdf, ruta_capa, nombre_capa)
-                
-                # Generar Mapa (Punto 3 y 4)
-                img_path = self._generar_captura_mapa(parcela_gdf, info_interseccion['gdf_capa'], referencia, nombre_capa)
-                
-                results.append({
-                    "capa": nombre_capa,
-                    "titulo": self.config_titulos.get(nombre_capa, nombre_capa),
-                    "afectado": info_interseccion['afectado'],
-                    "area_afectada": info_interseccion['area_m2'],
-                    "mapa_url": img_path
-                })
+        afecciones_info = {"referencia": referencia, "capas": []}
+
+        # 2. Analizar cada capa disponible en la carpeta /capas (recursivo)
+        for ruta_capa in self._iter_capa_files():
+            nombre_capa = ruta_capa.stem
+            
+            # Procesar intersección
+            info_interseccion = self._analizar_capa_especifica(parcela_gdf, ruta_capa, nombre_capa)
+            
+            # Generar Mapa (PNG)
+            img_path = self._generar_captura_mapa(parcela_gdf, info_interseccion['gdf_capa'], referencia, nombre_capa)
+            
+            # Preparar info para JSON
+            capa_info = {
+                "nombre": nombre_capa,
+                "titulo": self.config_titulos.get(nombre_capa, nombre_capa),
+                "afectado": info_interseccion['afectado'],
+                "area_afectada_m2": info_interseccion['area_m2'],
+                "mapa_url": img_path,
+                "fuente": str(ruta_capa.name)
+            }
+            afecciones_info["capas"].append(capa_info)
+            
+            results.append({
+                "capa": nombre_capa,
+                "titulo": self.config_titulos.get(nombre_capa, nombre_capa),
+                "afectado": info_interseccion['afectado'],
+                "area_afectada": info_interseccion['area_m2'],
+                "mapa_url": img_path
+            })
+
+        # Guardar JSON de afecciones
+        json_path = carpeta_ref / f"{referencia}_afecciones_info.json"
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(afecciones_info, f, indent=2, ensure_ascii=False)
 
         return results
 
     def _analizar_capa_especifica(self, parcela_gdf, ruta_capa, nombre):
         """Realiza el clipping espacial."""
-        capa_gdf = gpd.read_file(ruta_capa)
+        # Leer por bbox para evitar cargar capas gigantes completas.
+        # Importante: bbox debe estar en el CRS de la capa.
+        layer_crs = None
+        try:
+            with fiona.open(ruta_capa) as src:
+                layer_crs = src.crs_wkt or src.crs
+        except Exception:
+            layer_crs = None
+
+        bbox = None
+        if layer_crs:
+            try:
+                transformer = pyproj.Transformer.from_crs(parcela_gdf.crs, layer_crs, always_xy=True)
+                minx, miny, maxx, maxy = parcela_gdf.total_bounds
+                x1, y1 = transformer.transform(minx, miny)
+                x2, y2 = transformer.transform(maxx, maxy)
+                bbox = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+            except Exception:
+                bbox = None
+
+        try:
+            if bbox is not None:
+                capa_gdf = gpd.read_file(ruta_capa, bbox=bbox)
+            else:
+                capa_gdf = gpd.read_file(ruta_capa)
+        except TypeError:
+            capa_gdf = gpd.read_file(ruta_capa)
+
+        # Ajustar CRS
+        if capa_gdf.crs is None:
+            # Si no sabemos el CRS de la capa, asumimos el mismo que la parcela
+            capa_gdf = capa_gdf.set_crs(parcela_gdf.crs)
         if capa_gdf.crs != parcela_gdf.crs:
             capa_gdf = capa_gdf.to_crs(parcela_gdf.crs)
-
+        
         # Intersección
         interseccion = gpd.overlay(parcela_gdf, capa_gdf, how='intersection')
         

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catastro SaaS Pro | Dashboard de Tasación</title>
+    <link rel="stylesheet" href="/static/css/tasador.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Enhanced Styles */
+        .badge-success { background: #28a745; color: white; }
+        .badge-warning { background: #ffc107; color: #212529; }
+        .badge-error { background: #dc3545; color: white; }
+        .badge-info { background: #17a2b8; color: white; }
+        
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center;
+            z-index: 9999;
+        }
+        
+        .loading-spinner {
+            background: white; padding: 2rem; border-radius: 8px; text-align: center;
+        }
+        
+        .summary-stats {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem; margin: 1rem 0;
+        }
+        
+        .stat-item {
+            background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        
+        .stat-number {
+            display: block; font-size: 1.5rem; font-weight: bold; color: #007bff;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem; color: #6c757d;
+        }
+        
+        .btn-disabled {
+            opacity: 0.6; cursor: not-allowed;
+        }
+        
+        .btn-icon {
+            background: none; border: none; padding: 0.25rem; cursor: pointer;
+            color: #6c757d; transition: color 0.2s;
+        }
+        
+        .btn-icon:hover {
+            color: #007bff;
+        }
+        
+        .map-selectable {
+            border: 2px solid #dee2e6; border-radius: 8px; overflow: hidden;
+            transition: all 0.3s; cursor: pointer; position: relative;
+        }
+        
+        .map-selectable:hover {
+            border-color: #007bff; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .map-selectable.active {
+            border-color: #28a745; background: #f8fff9;
+        }
+        
+        .map-header {
+            position: relative; height: 120px; overflow: hidden;
+        }
+        
+        .map-header img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        
+        .map-status {
+            position: absolute; top: 8px; right: 8px; padding: 4px 8px;
+            border-radius: 4px; font-size: 0.75rem; font-weight: bold;
+        }
+        
+        .status-success {
+            background: #d4edda; color: #155724;
+        }
+        
+        .status-warning {
+            background: #fff3cd; color: #856404;
+        }
+        
+        .map-body {
+            padding: 1rem;
+        }
+        
+        .map-title {
+            font-weight: bold; margin-bottom: 0.5rem;
+        }
+        
+        .map-info {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        .map-area {
+            font-size: 0.875rem; color: #6c757d;
+        }
+        
+        .map-actions {
+            display: flex; gap: 0.5rem;
+        }
+        
+        .selection-indicator {
+            position: absolute; top: 8px; left: 8px; width: 24px; height: 24px;
+            background: #28a745; color: white; border-radius: 50%;
+            display: none; align-items: center; justify-content: center;
+        }
+        
+        .map-selectable.active .selection-indicator {
+            display: flex;
+        }
+        
+        .maps-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem; margin: 2rem 0;
+        }
+        
+        .selection-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 8px;
+        }
+        
+        .form-section {
+            background: white; padding: 2rem; border-radius: 8px;
+            border: 1px solid #dee2e6; margin: 2rem 0;
+        }
+        
+        .form-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem; margin: 1rem 0;
+        }
+        
+        .form-group {
+            display: flex; flex-direction: column;
+        }
+        
+        .form-group label {
+            font-weight: bold; margin-bottom: 0.5rem; color: #495057;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            padding: 0.75rem; border: 1px solid #ced4da; border-radius: 4px;
+            font-size: 1rem; transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none; border-color: #007bff; box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+        
+        .logo-upload {
+            border: 2px dashed #dee2e6; border-radius: 8px; padding: 2rem;
+            text-align: center; transition: border-color 0.2s; cursor: pointer;
+        }
+        
+        .logo-upload:hover {
+            border-color: #007bff;
+        }
+        
+        .logo-upload.has-file {
+            border-color: #28a745; background: #f8fff9;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+            <p>Procesando solicitud...</p>
+        </div>
+    </div>
+
+    <div class="app-layout">
+
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>GEO-TASADOR <strong>PRO</strong></span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="/static/index_enhanced.html" class="nav-item active">
+                    <i class="fas fa-search"></i> Análisis Catastral
+                </a>
+                <a href="/static/analysis.html" class="nav-item">
+                    <i class="fas fa-layer-group"></i> Visor GIS
+                </a>
+                <a href="/static/report_enhanced.html" class="nav-item">
+                    <i class="fas fa-file-pdf"></i> Generador de Informe
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>Versión 2.0.25 Enhanced</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+
+            <header class="top-bar">
+                <div class="user-info">
+                    <span id="status-badge" class="badge badge-info">Sistema Listo</span>
+                </div>
+            </header>
+
+            <div class="content-padding">
+
+                <section class="welcome-section">
+                    <h1>Panel de Control de Análisis Catastral</h1>
+                    <p class="text-muted">Introduce una referencia catastral para iniciar el análisis vectorial y urbanístico completo.</p>
+                </section>
+
+                <div class="grid-2 gap-lg">
+
+                    <div class="card shadow-sm">
+                        <div class="card-header">
+                            <h3><i class="fas fa-database"></i> Nueva Consulta</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="ref-input">Referencia Catastral (20 caracteres)</label>
+                                <input type="text" id="ref-input" class="input-main" placeholder="Ej: 1234567DG8912S0001AL"
+                                    maxlength="20">
+                            </div>
+                            <div class="btn-group mt-md">
+                                <button onclick="Actions.analizarReferencia()" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-magic"></i> Iniciar Análisis Completo
+                                </button>
+                                <button onclick="Actions.downloadAllFiles()" class="btn btn-secondary btn-lg" id="btn-download-all" disabled>
+                                    <i class="fas fa-download"></i> Descargar Todo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-header">
+                            <h3><i class="fas fa-tasks"></i> Progreso del Análisis</h3>
+                        </div>
+                        <div id="log-panel" class="log-container">
+                            <div class="log-entry">Esperando entrada de datos...</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="card mt-lg shadow-sm">
+                    <div class="card-header flex justify-between">
+                        <h3><i class="fas fa-list-check"></i> Resultados del Análisis Vectorial</h3>
+                        <button class="btn btn-primary btn-sm" id="btn-go-to-report" disabled onclick="window.location.href='/static/report_enhanced.html'">
+                            Configurar Informe <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="analysis-summary"></div>
+                        <table class="table-pro">
+                            <thead>
+                                <tr>
+                                    <th>Capa Analizada</th>
+                                    <th>Estado</th>
+                                    <th>Superficie Solapada</th>
+                                    <th>Documentación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table-body">
+                                <tr>
+                                    <td colspan="4" class="text-center py-lg text-muted">No hay datos procesados</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <script src="/static/js/tasador_enhanced.js"></script>
+</body>
+
+</html>
