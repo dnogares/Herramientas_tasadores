@@ -374,15 +374,37 @@ async def kml_intersection(kml_files: List[UploadFile] = File(...)):
     
     for f in kml_files:
         content = await f.read()
-        try:
-            # Intentar leer con GeoPandas (fiona automático)
-            # A veces ayuda especificar el driver si fiona lo detecta mal
-            try:
-                gdf = gpd.read_file(BytesIO(content))
-            except Exception:
-                # Reintento explicito KML
-                gdf = gpd.read_file(BytesIO(content), driver='KML')
-
+try:                    # Usar XML parser para KML (no requiere driver GDAL)
+                    from xml.etree import ElementTree as ET
+                    tree = ET.parse(BytesIO(content))
+                    # Buscar todas las coordenadas en el KML
+                    ns = {'kml': 'http://www.opengis.net/kml/2.2'}
+                    coords_text = []
+                    for coord_elem in tree.findall('.//kml:coordinates', ns):
+                        if coord_elem.text:
+                            coords_text.append(coord_elem.text.strip())
+                    
+                    if not coords_text:
+                        raise ValueError("No se encontraron coordenadas en el KML")
+                    
+                    # Crear geometrías desde las coordenadas
+                    from shapely.geometry import Polygon, MultiPolygon
+                    polygons = []
+                    for coords_str in coords_text:
+                        points = []
+                        for coord in coords_str.split():
+                            parts = coord.split(',')
+                            if len(parts) >= 2:
+                                lon, lat = float(parts[0]), float(parts[1])
+                                points.append((lon, lat))
+                        if len(points) >= 3:
+                            polygons.append(Polygon(points))
+                    
+                    if not polygons:
+                        raise ValueError("No se pudieron crear polígonos desde el KML")
+                    
+                    # Crear GeoDataFrame desde las geometrías
+                    gdf = gpd.GeoDataFrame({'geometry': polygons}, crs="EPSG:4326")
             if gdf.crs is None:
                 gdf = gdf.set_crs("EPSG:4326")
             gdf = gdf.to_crs("EPSG:25830")
