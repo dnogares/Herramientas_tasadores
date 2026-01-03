@@ -73,6 +73,9 @@ async function loadReferenceData() {
             analysisData = data;
             displayAnalysisData(data);
             updateMapWithLayers(data);
+            
+            // Cargar ortofotos locales
+            await loadOrtophotos();
         } else {
             showError('No se encontraron datos para esta referencia');
         }
@@ -201,6 +204,65 @@ function updateMapWithLayers(data) {
         if (capa.png_url) {
             // Intentar añadir capa de imagen
             addImageLayer(index, capa);
+        }
+    });
+}
+
+async function loadOrtophotos() {
+    if (!currentReference) return;
+    
+    try {
+        const response = await fetch('/api/ortophotos/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referencia: currentReference })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.ortophotos) {
+            console.log('[loadOrtophotos] Ortofotos cargadas:', data.ortophotos);
+            addOrtophotosToMap(data.ortophotos);
+        } else {
+            console.warn('[loadOrtophotos] No se pudieron cargar ortofotos:', data);
+        }
+    } catch (error) {
+        console.error('[loadOrtophotos] Error cargando ortofotos:', error);
+    }
+}
+
+function addOrtophotosToMap(ortophotos) {
+    if (!analysisData || !analysisData.coordenadas) {
+        console.warn('[addOrtophotosToMap] No hay coordenadas disponibles');
+        return;
+    }
+    
+    const coords = analysisData.coordenadas;
+    const buffer = 0.01; // ~1km de buffer
+    
+    ortophotos.forEach((ortofoto, index) => {
+        if (ortofoto.url) {
+            try {
+                // Calcular bounds basados en el buffer del ortofoto
+                const bufferDegrees = (ortofoto.buffer || 1000) / 111000; // Convertir metros a grados
+                const bounds = [
+                    [coords.lat - bufferDegrees, coords.lon - bufferDegrees],
+                    [coords.lat + bufferDegrees, coords.lon + bufferDegrees]
+                ];
+                
+                const imageOverlay = L.imageOverlay(ortofoto.url, bounds, {
+                    opacity: 0.7,
+                    className: 'ortophoto-layer-' + index,
+                    error: function(e) {
+                        console.error(`[addOrtophotosToMap] Error loading ortophoto ${ortofoto.url}:`, e);
+                    }
+                });
+                
+                currentLayers['ortophoto-' + index] = imageOverlay;
+                console.log(`[addOrtophotosToMap] Ortofoto layer created: ${ortofoto.title}, bounds:`, bounds);
+            } catch (error) {
+                console.error(`[addOrtophotosToMap] Error creating ortophoto layer:`, error);
+            }
         }
     });
 }
