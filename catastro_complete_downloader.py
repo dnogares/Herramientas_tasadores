@@ -306,7 +306,11 @@ class CatastroCompleteDownloader:
             return None
         
         try:
+            import matplotlib
+            matplotlib.use('Agg') # CRÍTICO: Backend no interactivo para servidores
             import matplotlib.pyplot as plt
+            import geopandas as gpd
+
             gdf = gpd.read_file(gml_path)
             if gdf.empty: return None
 
@@ -356,7 +360,10 @@ class CatastroCompleteDownloader:
         gml_path = output_dir / "gml" / f"{ref}_parcela.gml"
         # Si no existe, intentar descargarlo
         if not gml_path.exists():
-            gml_path = self.descargar_parcela_gml(ref, output_dir)
+            try:
+                gml_path = self.descargar_parcela_gml(ref, output_dir)
+            except:
+                gml_path = None
         
         lon, lat = coords['lon'], coords['lat']
         
@@ -389,10 +396,15 @@ class CatastroCompleteDownloader:
                 bbox, "Callejero", images_dir / f"{ref}_Callejero_{suffix}.png", transparent=True
             )
             
-            # 4. Silueta Vectorial - Transparente (Nueva funcionalidad)
-            path_silueta = self.generar_silueta_png(
-                gml_path, bbox, images_dir / f"{ref}_Silueta_{suffix}.png"
-            )
+            # 4. Silueta Vectorial (Tolerante a fallos)
+            path_silueta = None
+            if gml_path and gml_path.exists():
+                try:
+                    path_silueta = self.generar_silueta_png(
+                        gml_path, bbox, images_dir / f"{ref}_Silueta_{suffix}.png"
+                    )
+                except Exception as e:
+                    logger.warning(f"No se pudo generar silueta zoom {nivel}: {e}")
             
             resumen_descargas.append({
                 "nivel": nombre_nivel,
