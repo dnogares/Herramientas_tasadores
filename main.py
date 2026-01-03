@@ -197,38 +197,8 @@ async def list_references():
             "references": []
         }
 
-@app.post("/api/ortophotos/generate")
-async def generate_ortophotos(data: dict = Body(...)):
-    """Genera ortofotos multi-escala usando capas locales"""
-    ref = data.get("referencia")
-    if not ref:
-        raise HTTPException(status_code=400, detail="Falta referencia")
-    
-    # Obtener coordenadas reales desde Catastro
-    coords = None
-    try:
-        catastro_data = urban_engine.obtener_datos_catastrales(ref)
-        coords = catastro_data.get("coordenadas")
-    except Exception:
-        pass
+00
 
-    if not coords or not isinstance(coords, dict):
-        return JSONResponse(status_code=400, content={"status": "error", "message": "No se pudieron obtener coordenadas para la referencia. La referencia debe existir en Catastro."})
-
-    # Generar ortofotos usando capas locales
-    try:
-        ortophotos = local_layers.generar_ortofotos_multi_escala(ref, coords)
-        
-        if not ortophotos:
-            return JSONResponse(status_code=500, content={"status": "error", "message": "No se pudieron generar ortofotos con las capas locales disponibles"})
-        
-        return {"status": "success", "ref": ref, "ortophotos": ortophotos}
-        
-    except Exception as e:
-        logger.exception(f"Error generando ortofotos locales para {ref}")
-        return JSONResponse(status_code=500, content={"status": "error", "message": f"Error generando ortofotos: {str(e)}"})
-
-@app.get("/api/layers/info")
 async def get_layers_info():
     """Retorna información de capas locales disponibles"""
     try:
