@@ -105,8 +105,12 @@ async def query_catastro(data: dict = Body(...)):
                 content={"status": "error", "message": f"No se pudieron obtener datos catastrales: {catastro_data.get('status', 'error')}"}
             )
         
-        # 2. Generar ortofotos locales
-        coords = catastro_data.get("coordenadas")
+        # 2. Extraer datos de la nueva estructura
+        data_info = catastro_data.get("data", {})
+        coords = data_info.get("coordenadas")
+        carpetas = data_info.get("carpetas", {})
+        
+        # 3. Generar ortofotos locales
         ortophotos = []
         if coords and isinstance(coords, dict):
             try:
@@ -114,44 +118,43 @@ async def query_catastro(data: dict = Body(...)):
             except Exception as e:
                 logger.warning(f"No se pudieron generar ortofotos locales: {e}")
 
-        # 3. Convertir estructura de datos para compatibilidad con frontend
+        # 4. Procesar archivos descargados por el nuevo catastro_engine
         wms_layers = {}
         capas_procesadas = []
         
-        # Procesar archivos descargados por el nuevo catastro_engine
-        archivos = catastro_data.get("archivos", [])
-        
-        for archivo in archivos:
-            if archivo.endswith('.png'):
-                # Extraer nombre de capa del nombre de archivo
-                nombre_capa = archivo.split('_')[-1].replace('.png', '')
-                if nombre_capa == 'COMPOSICION':
-                    nombre_capa = 'composicion'
+        # Buscar archivos PNG en la carpeta de imágenes
+        if 'imagenes' in carpetas:
+            imagenes_path = Path(carpetas['imagenes'])
+            if imagenes_path.exists():
+                for archivo in imagenes_path.glob("*.png"):
+                    nombre_capa = archivo.stem.replace(f"{ref}_", "")
+                    if nombre_capa == 'COMPOSICION':
+                        nombre_capa = 'composicion'
+                        
+                    nombre_display = nombre_capa.replace("_", " ").title()
                     
-                nombre_display = nombre_capa.replace("_", " ").title()
-                
-                # Mapear nombres de capa a nombres descriptivos
-                nombres_map = {
-                    'catastro': 'Catastro',
-                    'ortofoto': 'Ortofoto PNOA', 
-                    'callejero': 'Callejero',
-                    'hidrografia': 'Hidrografía',
-                    'composicion': 'Composición Completa'
-                }
-                
-                nombre_display = nombres_map.get(nombre_capa, nombre_display)
-                url = f"/outputs/{ref}/{archivo}"
-                
-                wms_layers[nombre_capa] = url
-                capas_procesadas.append({
-                    "nombre": nombre_display,
-                    "estado": "Descargada",
-                    "superficie": "N/A",
-                    "png_url": url,
-                    "tipo": "WMS"
-                })
+                    # Mapear nombres de capa a nombres descriptivos
+                    nombres_map = {
+                        'catastro': 'Catastro',
+                        'ortofoto': 'Ortofoto PNOA', 
+                        'callejero': 'Callejero',
+                        'hidrografia': 'Hidrografía',
+                        'composicion': 'Composición Completa'
+                    }
+                    
+                    nombre_display = nombres_map.get(nombre_capa, nombre_display)
+                    url = f"/outputs/{ref}/imagenes/{archivo.name}"
+                    
+                    wms_layers[nombre_capa] = url
+                    capas_procesadas.append({
+                        "nombre": nombre_display,
+                        "estado": "Descargada",
+                        "superficie": "N/A",
+                        "png_url": url,
+                        "tipo": "WMS"
+                    })
         
-        # 4. Retornar todo integrado
+        # 5. Retornar todo integrado
         return {
             "status": "success",
             "ref": ref,
