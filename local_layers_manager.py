@@ -151,8 +151,8 @@ class LocalLayersManager:
             buffer_lat = buffer_metros / 111000
             bbox = (lon - buffer_lon, lat - buffer_lat, lon + buffer_lon, lat + buffer_lat)
             
-            # Configurar figura con tamaño adecuado para el mapa
-            fig, ax = plt.subplots(figsize=(16, 16), dpi=100)  # Tamaño grande para coincidir con mapa
+            # Configurar figura con tamaño controlado para evitar errores de memoria
+            fig, ax = plt.subplots(figsize=(10, 10), dpi=150)  # Tamaño moderado
             ax.set_aspect('equal')
             
             # Fondo base
@@ -197,12 +197,12 @@ class LocalLayersManager:
             ax.legend()
             ax.grid(True, alpha=0.3)
             
-            # Guardar imagen con alta calidad
+            # Guardar imagen con tamaño controlado
             output_dir = Path("outputs") / referencia / "ortophotos"
             output_dir.mkdir(parents=True, exist_ok=True)
             
             filename = output_dir / f"ortofoto_local_{buffer_metros}m.png"
-            plt.savefig(filename, dpi=150, bbox_inches='tight', facecolor='white', pad_inches=0.1)
+            plt.savefig(filename, dpi=100, bbox_inches='tight', facecolor='white', pad_inches=0.1)
             plt.close()
             
             logger.info(f"Ortofoto local generada: {filename}")
