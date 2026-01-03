@@ -623,7 +623,7 @@ body {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.9);
     color: white;
     padding: 15px;
     border-radius: 8px;
@@ -632,12 +632,12 @@ body {
     backdrop-filter: blur(10px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* Asegurar que siempre sea visible */
 .opacity-control.hidden {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(20px);
+    display: none !important;
 }
 
 .opacity-label {

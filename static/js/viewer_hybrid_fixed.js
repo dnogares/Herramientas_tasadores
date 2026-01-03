@@ -215,7 +215,7 @@ function addImageLayer(index, capa) {
         
         if (bounds && imageUrl) {
             const imageOverlay = L.imageOverlay(imageUrl, bounds, {
-                opacity: 0.7,
+                opacity: 0.8,
                 className: 'layer-overlay-' + index,
                 error: function(e) {
                     console.error(`[addImageLayer] Error loading image ${imageUrl}:`, e);
@@ -317,7 +317,13 @@ function updateOpacity(value) {
         currentLayers['image-' + layerIndex].setOpacity(value / 100);
         console.log(`[updateOpacity] Set opacity ${value/100} on layer image-${layerIndex}`);
     } else {
-        console.warn(`[updateOpacity] No layer found for index ${layerIndex}`);
+        // Si no hay capa específica, aplicar a todas las capas de imagen
+        Object.keys(currentLayers).forEach(key => {
+            if (key.startsWith('image-') && currentLayers[key]) {
+                currentLayers[key].setOpacity(value / 100);
+                console.log(`[updateOpacity] Set opacity ${value/100} on layer ${key}`);
+            }
+        });
     }
 }
 

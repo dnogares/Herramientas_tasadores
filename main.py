@@ -630,7 +630,8 @@ async def check_kml_support():
         return {
             "status": "success",
             "kml_support": kml_support,
-            "drivers": list(drivers.keys())
+            "drivers": list(drivers.keys()),
+            "message": "KML support available" if kml_support else "KML support not available - install KML driver"
         }
     except ImportError:
         return {"status": "error", "message": "Fiona no instalado"}
