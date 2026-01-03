@@ -120,37 +120,36 @@ async def query_catastro(data: dict = Body(...)):
         
         # Procesar archivos descargados por el nuevo catastro_engine
         archivos = catastro_data.get("archivos", [])
-        carpetas = catastro_data.get("carpetas", {})
         
-        # Buscar archivos PNG en las carpetas generadas
-        for nombre_carpeta, ruta_carpeta in carpetas.items():
-            if nombre_carpeta == 'imagenes':
-                carpeta_path = Path(ruta_carpeta)
-                if carpeta_path.exists():
-                    for archivo in carpeta_path.glob("*.png"):
-                        nombre_capa = archivo.stem.replace(f"{ref}_", "")
-                        nombre_display = nombre_capa.replace("_", " ").title()
-                        
-                        # Mapear nombres de capa a nombres descriptivos
-                        nombres_map = {
-                            'catastro': 'Catastro',
-                            'ortofoto': 'Ortofoto PNOA', 
-                            'callejero': 'Callejero',
-                            'hidrografia': 'Hidrografía',
-                            'composicion': 'Composición Completa'
-                        }
-                        
-                        nombre_display = nombres_map.get(nombre_capa, nombre_display)
-                        url = f"/outputs/{ref}/imagenes/{archivo.name}"
-                        
-                        wms_layers[nombre_capa] = url
-                        capas_procesadas.append({
-                            "nombre": nombre_display,
-                            "estado": "Descargada",
-                            "superficie": "N/A",
-                            "png_url": url,
-                            "tipo": "WMS"
-                        })
+        for archivo in archivos:
+            if archivo.endswith('.png'):
+                # Extraer nombre de capa del nombre de archivo
+                nombre_capa = archivo.split('_')[-1].replace('.png', '')
+                if nombre_capa == 'COMPOSICION':
+                    nombre_capa = 'composicion'
+                    
+                nombre_display = nombre_capa.replace("_", " ").title()
+                
+                # Mapear nombres de capa a nombres descriptivos
+                nombres_map = {
+                    'catastro': 'Catastro',
+                    'ortofoto': 'Ortofoto PNOA', 
+                    'callejero': 'Callejero',
+                    'hidrografia': 'Hidrografía',
+                    'composicion': 'Composición Completa'
+                }
+                
+                nombre_display = nombres_map.get(nombre_capa, nombre_display)
+                url = f"/outputs/{ref}/{archivo}"
+                
+                wms_layers[nombre_capa] = url
+                capas_procesadas.append({
+                    "nombre": nombre_display,
+                    "estado": "Descargada",
+                    "superficie": "N/A",
+                    "png_url": url,
+                    "tipo": "WMS"
+                })
         
         # 4. Retornar todo integrado
         return {

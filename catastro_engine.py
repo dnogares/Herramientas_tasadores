@@ -9,163 +9,195 @@ from datetime import datetime
 from typing import Dict, Optional, List
 import logging
 
-# Configuración de logging
+# Configuración de logging para ver errores en la consola de la API
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Dependencias opcionales con manejo de errores
+# Dependencias opcionales
 try:
     import geopandas as gpd
-    from shapely.geometry import Point, mapping
+    from shapely.geometry import shape, mapping
     GEOPANDAS_AVAILABLE = True
 except ImportError:
     GEOPANDAS_AVAILABLE = False
-    logger.warning("GeoPandas no instalado. Algunas funciones espaciales fallarán.")
+    logger.warning("⚠️ GeoPandas no detectado. No se generarán archivos KML.")
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
-    logger.warning("Pillow no instalado. No se crearán composiciones de imagen.")
+    logger.warning("⚠️ Pillow no detectado. No se generará la imagen de COMPOSICIÓN.")
 
 class CatastroDownloader:
     def __init__(self, output_base_dir: str):
         self.output_base_dir = Path(output_base_dir)
-        self.base_url_ovc = "https://ovc.catastro.minhafp.gob.es/ovc/Proxy.ashx"
+        self.output_base_dir.mkdir(parents=True, exist_ok=True)
         self.base_url_inspire = "https://ovc.catastro.meh.es/INSPIRE/wfsCP.aspx"
+        self.wms_url = "https://ovc.catastro.meh.es/Cartografia/WMS/ServidorWMS.aspx"
         
-        # Configuración de capas WMS
-        self.capas_wms = {
-            'catastro': 'Catastro',
-            'ortofoto': 'PNOA',
-            'callejero': 'Callejero',
-            'hidrografia': 'Hidrografia'
-        }
+    def limpiar_referencia(self, ref: str) -> str:
+        return ref.replace(' ', '').strip().upper()
 
     def _crear_estructura_carpetas(self, ref: str) -> Dict[str, Path]:
-        """Crea la estructura de subcarpetas para una referencia"""
+        """Organiza los resultados en subcarpetas por función"""
         ref_path = self.output_base_dir / ref
         dirs = {
             'raiz': ref_path,
             'imagenes': ref_path / "imagenes",
             'geometrias': ref_path / "geometrias",
-            'informes': ref_path / "informes",
-            'datos': ref_path / "datos"
+            'datos': ref_path / "datos",
+            'informes': ref_path / "informes"
         }
         for d in dirs.values():
             d.mkdir(parents=True, exist_ok=True)
         return dirs
 
-    def limpiar_referencia(self, ref: str) -> str:
-        return ref.replace(' ', '').strip().upper()
-
-    # --- OBTENCIÓN DE COORDENADAS ---
+    # ==========================================
+    # SISTEMA DE COORDENADAS (TRIPLE FALLBACK)
+    # ==========================================
     def obtener_coordenadas(self, ref: str) -> Optional[Dict]:
-        """Obtiene coordenadas WGS84 mediante el servicio oficial"""
-        url = f"https://ovc.catastro.meh.es/OVCServWeb/OVCWcfCallejero/COVCCallejero.svc/json/Geo_RCToWGS84/{ref}"
+        """Nivel 1: Servicio JSON / Nivel 2: Servicio XML"""
+        # Intento 1: JSON (Más rápido)
         try:
-            r = requests.get(url, timeout=20)
+            url = f"https://ovc.catastro.meh.es/OVCServWeb/OVCWcfCallejero/COVCCallejero.svc/json/Geo_RCToWGS84/{ref}"
+            r = requests.get(url, timeout=10)
             if r.status_code == 200:
                 data = r.json()
                 if 'geo' in data:
-                    return {'lon': float(data['geo']['xcen']), 'lat': float(data['geo']['ycen'])}
-        except Exception as e:
-            logger.error(f"Error obteniendo coordenadas: {e}")
+                    return {'lon': float(data['geo']['xcen']), 'lat': float(data['geo']['ycen']), 'src': 'JSON'}
+        except: pass
+
+        # Intento 2: XML Oficial (Más estable)
+        try:
+            url_xml = "https://ovc.catastro.meh.es/ovcservweb/ovcswlocalizacionrc/ovccoordenadas.asmx/Consulta_RCCOOR"
+            params = {"SRS": "EPSG:4326", "RC": ref}
+            r = requests.get(url_xml, params=params, timeout=10)
+            if r.status_code == 200:
+                root = ET.fromstring(r.content)
+                ns = {"cat": "http://www.catastro.meh.es/"}
+                coord = root.find(".//cat:coord", ns)
+                if coord is not None:
+                    geo = coord.find("cat:geo", ns)
+                    return {
+                        'lon': float(geo.find("cat:xcen", ns).text),
+                        'lat': float(geo.find("cat:ycen", ns).text),
+                        'src': 'XML'
+                    }
+        except: pass
         return None
 
-    # --- DESCARGAS DE GEOMETRÍA ---
-    def descargar_geometrias(self, ref: str, dirs: Dict):
-        """Descarga GML de parcela y edificio"""
-        params_base = {'service': 'wfs', 'version': '2.0.0', 'request': 'GetFeature', 'refcat': ref, 'srsname': 'EPSG:25830'}
-        
-        # 1. Parcela
+    def extraer_coordenadas_de_gml(self, gml_content: bytes) -> Optional[Dict]:
+        """Nivel 3: Rescate desde el archivo GML (Si los servicios fallan)"""
         try:
-            p = {**params_base, 'STOREDQUERY_ID': 'GetParcel'}
-            r = requests.get(self.base_url_inspire, params=p, timeout=30)
+            root = ET.fromstring(gml_content)
+            ns = {'gml': 'http://www.opengis.net/gml/3.2'}
+            pos_list = root.find('.//gml:posList', ns)
+            if pos_list is not None:
+                coords = pos_list.text.split()
+                # El GML suele venir en Lat, Lon (EPSG:4326) o X, Y (UTM)
+                # Tomamos el primer par de puntos como referencia de centro
+                return {'lat': float(coords[0]), 'lon': float(coords[1]), 'src': 'GML_EXTRACT'}
+        except Exception as e:
+            logger.error(f"Error extrayendo de GML: {e}")
+        return None
+
+    # ==========================================
+    # DESCARGAS DE DATOS
+    # ==========================================
+    def descargar_geometrias(self, ref: str, dirs: Dict) -> Optional[bytes]:
+        """Descarga GML y genera KML si es posible"""
+        params = {
+            'service': 'wfs', 'version': '2.0.0', 'request': 'GetFeature',
+            'STOREDQUERY_ID': 'GetParcel', 'refcat': ref, 'srsname': 'EPSG:4326'
+        }
+        try:
+            r = requests.get(self.base_url_inspire, params=params, timeout=25)
             if r.status_code == 200 and b'Exception' not in r.content:
                 gml_path = dirs['geometrias'] / f"{ref}_parcela.gml"
                 gml_path.write_bytes(r.content)
-                # Convertir a KML si es posible
+                
+                # Conversión a KML
                 if GEOPANDAS_AVAILABLE:
                     try:
                         gdf = gpd.read_file(BytesIO(r.content))
-                        gdf.to_crs('EPSG:4326').to_file(dirs['geometrias'] / f"{ref}_parcela.kml", driver='KML')
+                        gdf.to_file(dirs['geometrias'] / f"{ref}_parcela.kml", driver='KML')
                     except: pass
-                return gml_path
+                return r.content
         except Exception as e:
-            logger.error(f"Error geometría parcela: {e}")
+            logger.error(f"Error en descarga GML: {e}")
         return None
 
-    # --- DESCARGAS DE IMÁGENES (WMS) ---
-    def descargar_mapas(self, ref: str, coords: Dict, dirs: Dict, gml_path: Path = None):
-        """Descarga capas WMS y crea la composición"""
+    def descargar_imagenes_wms(self, ref: str, coords: Dict, dirs: Dict):
+        """Descarga Ortofotos y Mapas Catastrales"""
         lon, lat = coords['lon'], coords['lat']
-        buffer = 0.002 # Aprox 200m
+        buffer = 0.0018  # Zoom aproximado
         bbox = f"{lon-buffer},{lat-buffer},{lon+buffer},{lat+buffer}"
         
-        wms_url = "https://ovc.catastro.meh.es/Cartografia/WMS/ServidorWMS.aspx"
-        fotos_descargadas = {}
+        capas = {'ortofoto': 'PNOA', 'catastro': 'Catastro'}
+        img_paths = {}
 
-        for nombre, layer in self.capas_wms.items():
+        for nombre, layer in capas.items():
             params = {
                 'SERVICE': 'WMS', 'VERSION': '1.1.1', 'REQUEST': 'GetMap',
                 'LAYERS': layer, 'SRS': 'EPSG:4326', 'BBOX': bbox,
                 'WIDTH': '1200', 'HEIGHT': '1200', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE'
             }
             try:
-                r = requests.get(wms_url, params=params, timeout=30)
-                if r.status_code == 200 and len(r.content) > 1000:
-                    img_path = dirs['imagenes'] / f"{ref}_{nombre}.png"
-                    img_path.write_bytes(r.content)
-                    fotos_descargadas[nombre] = img_path
-            except: continue
+                r = requests.get(self.wms_url, params=params, timeout=20)
+                if r.status_code == 200:
+                    path = dirs['imagenes'] / f"{ref}_{nombre}.png"
+                    path.write_bytes(r.content)
+                    img_paths[nombre] = path
+            except: pass
 
-        # Crear composición si Pillow está disponible
-        if PILLOW_AVAILABLE and 'ortofoto' in fotos_descargadas:
-            self._crear_composicion(ref, fotos_descargadas, dirs['imagenes'])
+        # Crear composición (Mix de foto + líneas de catastro)
+        if PILLOW_AVAILABLE and 'ortofoto' in img_paths and 'catastro' in img_paths:
+            try:
+                img1 = Image.open(img_paths['ortofoto']).convert("RGBA")
+                img2 = Image.open(img_paths['catastro']).convert("RGBA")
+                composicion = Image.alpha_composite(img1, img2)
+                composicion.save(dirs['imagenes'] / f"{ref}_COMPOSICION.png")
+            except: pass
 
-    def _crear_composicion(self, ref: str, fotos: Dict, out_dir: Path):
-        try:
-            base = Image.open(fotos['ortofoto']).convert('RGBA')
-            if 'catastro' in fotos:
-                overlay = Image.open(fotos['catastro']).convert('RGBA')
-                base = Image.alpha_composite(base, overlay)
-            
-            # Guardar resultado final
-            base.save(out_dir / f"{ref}_COMPOSICION.png")
-        except Exception as e:
-            logger.error(f"Error en composición: {e}")
-
-    # --- FLUJO PRINCIPAL ---
+    # ==========================================
+    # MÉTODO PRINCIPAL (EL QUE LLAMA MAIN.PY)
+    # ==========================================
     def descargar_todo_completo(self, referencia: str) -> Dict:
-        """Este es el método que llamará main.py para hacerlo TODO"""
         ref = self.limpiar_referencia(referencia)
         dirs = self._crear_estructura_carpetas(ref)
         
-        resultado = {
+        logger.info(f"🚀 Iniciando proceso completo para: {ref}")
+
+        # 1. Intentar Geometría (es lo más importante)
+        gml_content = self.descargar_geometrias(ref, dirs)
+
+        # 2. Intentar Coordenadas (Servicios oficiales)
+        coords = self.obtener_coordenadas(ref)
+
+        # 3. SI FALLA EL PASO 2: Rescate desde GML
+        if not coords and gml_content:
+            logger.info("⚠️ Servicios de coordenadas fallaron. Usando rescate GML...")
+            coords = self.extraer_coordenadas_de_gml(gml_content)
+
+        if not coords:
+            return {"status": "error_coords", "referencia": ref}
+
+        # 4. Descargar Imágenes con las coordenadas obtenidas
+        self.descargar_imagenes_wms(ref, coords, dirs)
+
+        # 5. Guardar metadatos JSON
+        info = {
             "referencia": ref,
-            "status": "iniciado",
-            "archivos": [],
+            "coordenadas": coords,
+            "fecha": datetime.now().isoformat(),
             "carpetas": {k: str(v.relative_to(self.output_base_dir)) for k, v in dirs.items()}
         }
+        with open(dirs['datos'] / "info.json", 'w', encoding='utf-8') as f:
+            json.dump(info, f, indent=4)
 
-        # 1. Coordenadas
-        coords = self.obtener_coordenadas(ref)
-        if not coords:
-            resultado["status"] = "error_coords"
-            return resultado
-
-        # 2. Geometrías (GML/KML)
-        gml_parcela = self.descargar_geometrias(ref, dirs)
-        
-        # 3. Mapas e Imágenes
-        self.descargar_mapas(ref, coords, dirs, gml_parcela)
-
-        # 4. Datos JSON de consulta
-        info_path = dirs['datos'] / f"{ref}_info.json"
-        with open(info_path, 'w') as f:
-            json.dump({"ref": ref, "coords": coords, "fecha": datetime.now().isoformat()}, f)
-
-        resultado["status"] = "success"
-        resultado["coordenadas"] = coords
-        return resultado
+        return {
+            "status": "success",
+            "referencia": ref,
+            "data": info
+        }
