@@ -61,7 +61,7 @@ function switchTab(tabName) {
     document.getElementById(`tab-${tabName}`).classList.add('active');
 }
 
-// Análisis individual (mejorado de v2)
+// Análisis individual (mejorado con ortofotos integradas)
 async function analyzeSingle() {
     const ref = document.getElementById('ref-input').value.trim();
     if (!ref) {
@@ -73,7 +73,12 @@ async function analyzeSingle() {
     UI.log(`🔍 Analizando referencia: ${ref}`);
     UI.updateStatus('Procesando...', 'warning');
 
+    // Limpiar visor anterior
+    document.getElementById('layer-viewer-container').classList.add('hidden');
+    document.getElementById('ortho-preview').innerHTML = '';
+
     try {
+        // 1. Análisis Urbanístico y GIS Principal
         const response = await fetch('/api/catastro/query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -81,21 +86,43 @@ async function analyzeSingle() {
         });
 
         const data = await response.json();
+
         if (data.status === 'success') {
             AppState.lastAnalysisData = data;
             const capas_afectan = data.analisis?.resumen?.capas_afectan || 0;
-            UI.log(`✅ Análisis completado: ${capas_afectan} capas afectan`, 'success');
+            UI.log(`✅ Análisis GIS completado: ${capas_afectan} capas afectan`, 'success');
             UI.updateStats(data);
             updateResultsTable([data]);
-            UI.updateStatus('Análisis completado', 'success');
 
-            // Habilitar botón de informes
+            // Habilitar informe
             const informeBtn = document.querySelector('button[onclick*="report_complete"]');
-            if (informeBtn) {
-                informeBtn.disabled = false;
-                informeBtn.classList.remove('btn-disabled');
+            if (informeBtn) informeBtn.disabled = false;
+
+            // 2. Generación Automática de Ortofotos Multi-Escala
+            UI.log('📷 Generando vistas multi-escala...', 'info');
+            try {
+                const orthoResponse = await fetch('/api/ortophotos/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ referencia: ref })
+                });
+                const orthoData = await orthoResponse.json();
+
+                if (orthoData.status === 'success') {
+                    UI.log('✅ Visualización cargada correctamente', 'success');
+                    // Mostrar contenedor y cargar datos
+                    document.getElementById('layer-viewer-container').classList.remove('hidden');
+                    displayOrtophotos(orthoData);
+                }
+            } catch (e) {
+                UI.log('⚠️ No se pudieron cargar las ortofotos', 'warning');
             }
+
+            UI.updateStatus('Análisis Completo', 'success');
+        } else {
+            throw new Error(data.message || 'Error desconocido');
         }
+
     } catch (error) {
         UI.log(`❌ Error: ${error.message}`, 'error');
         UI.updateStatus('Error', 'danger');
