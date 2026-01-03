@@ -69,7 +69,7 @@ STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR.mkdir(exist_ok=True)
 # CAPAS_DIR es un volumen externo, no crear localmente
 
-# 2. MONTAR ARCHIVOS ESTÁTICOS
+# Montar archivos estáticos
 # Importante: Esto permite que Easypanel sirva el HTML, CSS, JS y las imágenes generadas
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/outputs", StaticFiles(directory=str(OUTPUT_DIR)), name="outputs")
@@ -96,11 +96,17 @@ async def query_catastro(data: dict = Body(...)):
         raise HTTPException(status_code=400, detail="Falta referencia")
 
     try:
-        # 1. Análisis urbanístico completo
-        analisis_data = urban_engine.obtener_datos_catastrales(ref)
+        # 1. Usar el nuevo catastro_engine actualizado
+        catastro_data = catastro_engine.descargar_todo_completo(ref)
+        
+        if catastro_data.get("status") != "success":
+            return JSONResponse(
+                status_code=400, 
+                content={"status": "error", "message": f"No se pudieron obtener datos catastrales: {catastro_data.get('status', 'error')}"}
+            )
         
         # 2. Generar ortofotos locales
-        coords = analisis_data.get("coordenadas")
+        coords = catastro_data.get("coordenadas")
         ortophotos = []
         if coords and isinstance(coords, dict):
             try:
@@ -108,12 +114,59 @@ async def query_catastro(data: dict = Body(...)):
             except Exception as e:
                 logger.warning(f"No se pudieron generar ortofotos locales: {e}")
 
-        # 3. Retornar todo integrado
+        # 3. Convertir estructura de datos para compatibilidad con frontend
+        wms_layers = {}
+        capas_procesadas = []
+        
+        # Procesar archivos descargados por el nuevo catastro_engine
+        archivos = catastro_data.get("archivos", [])
+        carpetas = catastro_data.get("carpetas", {})
+        
+        # Buscar archivos PNG en las carpetas generadas
+        for nombre_carpeta, ruta_carpeta in carpetas.items():
+            if nombre_carpeta == 'imagenes':
+                carpeta_path = Path(ruta_carpeta)
+                if carpeta_path.exists():
+                    for archivo in carpeta_path.glob("*.png"):
+                        nombre_capa = archivo.stem.replace(f"{ref}_", "")
+                        nombre_display = nombre_capa.replace("_", " ").title()
+                        
+                        # Mapear nombres de capa a nombres descriptivos
+                        nombres_map = {
+                            'catastro': 'Catastro',
+                            'ortofoto': 'Ortofoto PNOA', 
+                            'callejero': 'Callejero',
+                            'hidrografia': 'Hidrografía',
+                            'composicion': 'Composición Completa'
+                        }
+                        
+                        nombre_display = nombres_map.get(nombre_capa, nombre_display)
+                        url = f"/outputs/{ref}/imagenes/{archivo.name}"
+                        
+                        wms_layers[nombre_capa] = url
+                        capas_procesadas.append({
+                            "nombre": nombre_display,
+                            "estado": "Descargada",
+                            "superficie": "N/A",
+                            "png_url": url,
+                            "tipo": "WMS"
+                        })
+        
+        # 4. Retornar todo integrado
         return {
             "status": "success",
             "ref": ref,
             "coordenadas": coords,
-            "analisis": analisis_data,
+            "analisis": {
+                "resumen": {
+                    "total_capas": len(capas_procesadas),
+                    "capas_afectan": 0,
+                    "superficie_total_afectada": "0.00 m²",
+                    "archivos_generados": len(capas_procesadas)
+                },
+                "capas_procesadas": capas_procesadas,
+                "wms_layers": wms_layers
+            },
             "ortophotos": ortophotos,
             "carpeta": f"/outputs/{ref}"
         }

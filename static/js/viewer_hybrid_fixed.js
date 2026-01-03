@@ -180,6 +180,15 @@ function displayAnalysisData(data) {
                         ${capa.superficie ? `<span class="layer-area">${capa.superficie}</span>` : ''}
                         ${capa.buffer ? `<span class="layer-buffer">Buffer: ${capa.buffer}m</span>` : ''}
                     </div>
+                    ${hasImage ? `
+                        <div class="layer-opacity-control">
+                            <label class="opacity-label-small">Opacidad:</label>
+                            <input type="range" class="opacity-slider-small" id="opacity-${index}" 
+                                   min="0" max="100" value="80" 
+                                   onchange="updateLayerOpacity(${index}, this.value)">
+                            <span class="opacity-value-small">80%</span>
+                        </div>
+                    ` : ''}
                 </div>
             `;
         });
@@ -354,12 +363,37 @@ function calculateImageBounds(capa) {
     return null;
 }
 
+function updateLayerOpacity(index, value) {
+    const layerKey = 'image-' + index;
+    const ortophotoKey = 'ortophoto-' + index;
+    
+    console.log(`[updateLayerOpacity] index=${index}, value=${value}`);
+    
+    // Actualizar capa de imagen normal
+    if (currentLayers[layerKey]) {
+        currentLayers[layerKey].setOpacity(value / 100);
+        console.log(`[updateLayerOpacity] Set opacity ${value/100} on layer ${layerKey}`);
+    }
+    
+    // Actualizar ortofoto
+    if (currentLayers[ortophotoKey]) {
+        currentLayers[ortophotoKey].setOpacity(value / 100);
+        console.log(`[updateLayerOpacity] Set opacity ${value/100} on ortophoto ${ortophotoKey}`);
+    }
+    
+    // Actualizar el valor mostrado
+    const valueSpan = document.querySelector(`#opacity-${index} + .opacity-value-small`);
+    if (valueSpan) {
+        valueSpan.textContent = value + '%';
+    }
+}
+
 function toggleLayer(index) {
     const layerKey = 'image-' + index;
     const ortophotoKey = 'ortophoto-' + index;
-            
+    
     console.log(`[toggleLayer] index=${index}`);
-            
+    
     // Verificar si es una capa de imagen u ortofoto
     if (currentLayers[layerKey]) {
         // Capa de imagen normal
@@ -382,7 +416,7 @@ function toggleLayer(index) {
     } else {
         console.warn(`[toggleLayer] No layer found for index ${index}`);
     }
-            
+    
     // Mostrar control de opacidad
     showOpacityControl();
 }
@@ -467,6 +501,7 @@ function showError(message) {
 window.loadReferenceData = loadReferenceData;
 window.toggleLayer = toggleLayer;
 window.updateOpacity = updateOpacity;
+window.updateLayerOpacity = updateLayerOpacity;
 window.zoomIn = zoomIn;
 window.zoomOut = zoomOut;
 window.fitBounds = fitBounds;
