@@ -142,6 +142,13 @@ class AnalizadorUrbanistico:
                 "kml": str(kml_path),
                 "coordenadas": coordenadas,
                 "wms_layers": wms_layers,
+                "resumen": {
+                    "total_capas": len(wms_layers),
+                    "capas_afectan": 0,
+                    "superficie_total_afectada": "0.00 m²",
+                    "archivos_generados": len(wms_layers)
+                },
+                "capas_procesadas": []
             }
         except Exception as e:
             logger.error(f"Error al obtener datos de {referencia}: {e}")
