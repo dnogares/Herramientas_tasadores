@@ -409,15 +409,15 @@ try:                    # Usar XML parser para KML (no requiere driver GDAL)
                 gdf = gdf.set_crs("EPSG:4326")
             gdf = gdf.to_crs("EPSG:25830")
             
-            # Unificar geometría si es multi-geometría
-            geom = unary_union(gdf.geometry)
-            gdfs.append(geom)
-            names.append(Path(f.filename).stem)
-        except Exception as e:
-            errors.append(f"{f.filename}: {str(e)}")
-            continue
-
-    intersections = []
+                        # Unificar geometría si es multi-geometría
+                            geom = unary_union(gdf.geometry)
+                        gdfs.append(geom)
+                        names.append(Path(f.filename).stem)
+                            except Exception as e:
+                                            errors.append(f"{f.filename}: {str(e)}")
+                            continue
+            
+                intersections = []
     if len(gdfs) > 1:
         for i in range(len(gdfs)):
             for j in range(i + 1, len(gdfs)):
