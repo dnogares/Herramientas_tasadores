@@ -2,7 +2,9 @@
 FROM python:3.10-slim
 
 # Instalar dependencias del sistema necesarias para GeoPandas y Matplotlib
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y  \
+    gdal-bin \
+        libkml-dev \
     libgdal-dev \
     g++ \
     libproj-dev \
