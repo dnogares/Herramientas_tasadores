@@ -404,34 +404,56 @@ async def kml_intersection(kml_files: List[UploadFile] = File(...)):
 
     gdfs = []
     names = []
+    errors = []
+    
     for f in kml_files:
         content = await f.read()
         try:
-            gdf = gpd.read_file(BytesIO(content))
+            # Intentar leer con GeoPandas (fiona automático)
+            # A veces ayuda especificar el driver si fiona lo detecta mal
+            try:
+                gdf = gpd.read_file(BytesIO(content))
+            except Exception:
+                # Reintento explicito KML
+                gdf = gpd.read_file(BytesIO(content), driver='KML')
+
             if gdf.crs is None:
                 gdf = gdf.set_crs("EPSG:4326")
             gdf = gdf.to_crs("EPSG:25830")
+            
+            # Unificar geometría si es multi-geometría
             geom = unary_union(gdf.geometry)
             gdfs.append(geom)
             names.append(Path(f.filename).stem)
-        except Exception:
+        except Exception as e:
+            errors.append(f"{f.filename}: {str(e)}")
             continue
 
     intersections = []
-    for i in range(len(gdfs)):
-        for j in range(i + 1, len(gdfs)):
-            inter = gdfs[i].intersection(gdfs[j])
-            area = float(inter.area) if not inter.is_empty else 0.0
-            base_area = float(gdfs[i].area) if gdfs[i].area else 0.0
-            pct = (area / base_area * 100.0) if base_area > 0 else 0.0
-            intersections.append({
-                "layer1": names[i],
-                "layer2": names[j],
-                "percentage": pct,
-                "area_m2": area,
-            })
+    if len(gdfs) > 1:
+        for i in range(len(gdfs)):
+            for j in range(i + 1, len(gdfs)):
+                try:
+                    inter = gdfs[i].intersection(gdfs[j])
+                    area = float(inter.area) if not inter.is_empty else 0.0
+                    base_area = float(gdfs[i].area) if gdfs[i].area else 0.0
+                    pct = (area / base_area * 100.0) if base_area > 0 else 0.0
+                    
+                    intersections.append({
+                        "layer1": names[i],
+                        "layer2": names[j],
+                        "percentage": round(pct, 2),
+                        "area_m2": round(area, 2),
+                    })
+                except Exception as e:
+                    errors.append(f"Error cruce {names[i]}-{names[j]}: {str(e)}")
 
-    return {"status": "success", "intersections": intersections, "total_files": len(names)}
+    return {
+        "status": "success", 
+        "intersections": intersections, 
+        "total_files": len(names),
+        "errors": errors
+    }
 
 @app.post("/api/report/generate")
 @app.post("/api/report/custom")

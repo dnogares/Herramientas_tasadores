@@ -263,197 +263,132 @@ class CatastroCompleteDownloader:
         return None
 
     def generar_html_descriptivo(self, data, ref):
-        """Genera HTML descriptivo"""
+        """Genera HTML descriptivo básico"""
         html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Consulta {ref}</title>
-<style>
-body {{ font-family: Arial, sans-serif; margin: 20px; }}
-h1 {{ color: #003366; }}
-.seccion {{ margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }}
-</style>
-</head><body>
-<h1>Consulta Catastral - {ref}</h1>
+<style>body {{ font-family: sans-serif; margin: 20px; }} .seccion {{ margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }}</style>
+</head><body><h1>Consulta {ref}</h1>
 """
-        if data:
-            if 'ldt' in data:
-                html += f'<div class="seccion"><h2>Dirección</h2><p>{data["ldt"]}</p></div>'
-            if 'geo' in data:
-                html += f'<div class="seccion"><h2>Coordenadas</h2><p>Lon={data["geo"].get("xcen")} Lat={data["geo"].get("ycen")}</p></div>'
+        if data and 'ldt' in data:
+            html += f"<div class='seccion'><h3>Dirección</h3><p>{data['ldt']}</p></div>"
         html += "</body></html>"
         return html
 
-    def descargar_parcela_gml(self, referencia: str, output_dir: Path):
-        """Descarga geometría de parcela y guarda en carpeta gml"""
-        ref = self.limpiar_referencia(referencia)
-        gml_dir = output_dir / "gml"
-        gml_dir.mkdir(exist_ok=True)
-        kml_dir = output_dir / "kml"
-        kml_dir.mkdir(exist_ok=True)
-        
-        url = f"{self.base_catastro}/INSPIRE/wfsCP.aspx"
-        params = {
-            'service': 'wfs', 'version': '2.0.0', 'request': 'GetFeature',
-            'STOREDQUERY_ID': 'GetParcel', 'refcat': ref, 'srsname': 'EPSG:25830'
+    def calcular_bbox_escala(self, lon_centro, lat_centro, nivel):
+        """
+        Calcula BBOX para 4 niveles de zoom.
+        Nivel 1: España (aprox 1000km)
+        Nivel 2: Región (aprox 50km)
+        Nivel 3: Local/Municipio (aprox 2km)
+        Nivel 4: Parcela (aprox 200m)
+        """
+        # Metros de 'radio' aproximado para cada nivel
+        radios = {
+            1: 600000,  # España entera
+            2: 25000,   # Comarca/Región
+            3: 1000,    # Municipio/Barrio
+            4: 150      # Parcela (detalle)
         }
         
-        try:
-            r = safe_get(url, params=params, timeout=30)
-            if r.status_code == 200 and b'ExceptionReport' not in r.content:
-                filename = gml_dir / f"{ref}_parcela.gml"
-                with open(filename, 'wb') as f:
-                    f.write(r.content)
-                
-                # Generar KML si geopandas disponible
-                if GEOPANDAS_AVAILABLE:
-                    try:
-                        gdf = gpd.read_file(BytesIO(r.content))
-                        if not gdf.empty:
-                            kml_file = kml_dir / f"{ref}_parcela.kml"
-                            gdf.to_crs('EPSG:4326').to_file(kml_file, driver='KML')
-                    except Exception:
-                        pass
-                return filename
-        except Exception as e:
-            logger.error(f"  ⚠️ Error descargando parcela GML: {e}")
-        return None
+        radio = radios.get(nivel, 150)
+        
+        # Conversión aproximada a grados (en latitudes medias de España)
+        # 1 grado lat ~ 111km
+        # 1 grado lon ~ 85km
+        delta_lat = radio / 111000.0
+        delta_lon = radio / 85000.0
+        
+        return f"{lon_centro - delta_lon},{lat_centro - delta_lat},{lon_centro + delta_lon},{lat_centro + delta_lat}"
 
-    def descargar_edificio_gml(self, referencia: str, output_dir: Path):
-        """Descarga geometría de edificio y guarda en carpeta gml"""
-        ref = self.limpiar_referencia(referencia)
-        gml_dir = output_dir / "gml"
-        gml_dir.mkdir(exist_ok=True)
-        
-        url = f"{self.base_catastro}/INSPIRE/wfsCP.aspx"
-        params = {
-            'service': 'wfs', 'version': '2.0.0', 'request': 'GetFeature',
-            'STOREDQUERY_ID': 'GetBuilding', 'refcat': ref, 'srsname': 'EPSG:25830'
-        }
-        
-        try:
-            r = safe_get(url, params=params, timeout=30)
-            if r.status_code == 200 and b'ExceptionReport' not in r.content and len(r.content) > 500:
-                filename = gml_dir / f"{ref}_edificio.gml"
-                with open(filename, 'wb') as f:
-                    f.write(r.content)
-                return filename
-        except Exception as e:
-            logger.error(f"  ⚠️ Error descargando edificio GML: {e}")
-        return None
-
-    def descargar_ficha_catastral(self, referencia: str, output_dir: Path):
-        """Descarga ficha catastral (PDF/XML) y guarda en carpeta pdf"""
-        ref = self.limpiar_referencia(referencia)
-        pdf_dir = output_dir / "pdf"
-        pdf_dir.mkdir(exist_ok=True)
-        
-        # Intentar PDF primero
-        pdf_url = f"{self.base_catastro}/OVCServWeb/OVCWcfFichas/COVCFichas.svc/pdf/Ficha/{ref}"
-        try:
-            r = safe_get(pdf_url, timeout=30)
-            if r.status_code == 200 and r.content.startswith(b'%PDF'):
-                pdf_path = pdf_dir / f"{ref}_ficha.pdf"
-                pdf_path.write_bytes(r.content)
-                return pdf_path
-        except Exception:
-            pass
-        
-        # Fallback a XML
-        xml_url = f"{self.base_catastro}/OVCServWeb/OVCWcfFichas/COVCFichas.svc/xml/Ficha/{ref}"
-        try:
-            r = safe_get(xml_url, timeout=30)
-            if r.status_code == 200 and r.content.startswith(b'<?xml'):
-                xml_path = pdf_dir / f"{ref}_ficha.xml"
-                xml_path.write_bytes(r.content)
-                return xml_path
-        except Exception:
-            pass
-        
-        return None
-
-    def descargar_capa_wms(self, referencia, coords, nombre_capa, layers, output_dir: Path, bbox_metros=200):
-        """Descarga capa WMS y guarda en carpeta images"""
+    def descargar_set_capas_completo(self, referencia, coords, output_dir: Path):
+        """
+        Descarga el set completo de 4 ortofotos + capas superpuestas
+        Todas comparten el mismo BBOX para poder superponerse perfectamente.
+        """
         ref = self.limpiar_referencia(referencia)
         images_dir = output_dir / "images"
-        images_dir.mkdir(exist_ok=True)
+        images_dir.mkdir(exist_ok=True, parents=True)
         
         lon, lat = coords['lon'], coords['lat']
-        bbox = self.calcular_bbox(lon, lat, bbox_metros)
+        
+        # 4 Niveles de Zoom
+        niveles = [
+            (1, "Nacional"),
+            (2, "Regional"),
+            (3, "Local"),
+            (4, "Parcela")
+        ]
+        
+        resumen_descargas = []
+
+        for nivel, nombre_nivel in niveles:
+            bbox = self.calcular_bbox_escala(lon, lat, nivel)
+            suffix = f"zoom{nivel}_{nombre_nivel}"
+            
+            # 1. Ortofoto Base (PNOA) - Opaca
+            path_orto = self._descargar_wms_generico(
+                bbox, "PNOA", images_dir / f"{ref}_Ortofoto_{suffix}.png"
+            )
+            
+            # 2. Capa Catastro - Transparente (para superponer)
+            path_cat = self._descargar_wms_generico(
+                bbox, "Catastro", images_dir / f"{ref}_Catastro_{suffix}.png", transparent=True
+            )
+            
+            # 3. Capa Callejero - Transparente
+            path_call = self._descargar_wms_generico(
+                bbox, "Callejero", images_dir / f"{ref}_Callejero_{suffix}.png", transparent=True
+            )
+            
+            resumen_descargas.append({
+                "nivel": nombre_nivel,
+                "ortofoto": str(path_orto) if path_orto else None,
+                "catastro": str(path_cat) if path_cat else None
+            })
+            
+            logger.info(f"    📷 Generado Zoom {nivel}: {nombre_nivel}")
+
+        return resumen_descargas
+
+    def _descargar_wms_generico(self, bbox, layers, output_path: Path, transparent=False):
+        """Helper para descargas WMS estandarizadas"""
         wms_url = f"{self.base_catastro}/Cartografia/WMS/ServidorWMS.aspx"
         params = {
             'SERVICE': 'WMS', 'VERSION': '1.1.1', 'REQUEST': 'GetMap',
-            'LAYERS': layers, 'STYLES': '', 'SRS': 'EPSG:4326', 'BBOX': bbox,
-            'WIDTH': '1600', 'HEIGHT': '1600', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE'
+            'LAYERS': layers, 'STYLES': '', 'SRS': 'EPSG:4326', 
+            'BBOX': bbox,
+            'WIDTH': '1600', 'HEIGHT': '1600', # Tamaño fijo para todas
+            'FORMAT': 'image/png', 
+            'TRANSPARENT': 'TRUE' if transparent else 'FALSE'
         }
         
+        # Si es PNOA (Ortofoto), a veces requiere BGCOLOR o no ser transparente para verse bien de fondo
+        if layers == "PNOA":
+            params['TRANSPARENT'] = 'FALSE'
+            
         try:
             r = safe_get(wms_url, params=params, timeout=60)
             if r.status_code == 200 and len(r.content) > 1000:
-                filename = images_dir / f"{ref}_capa_{nombre_capa}.png"
-                with open(filename, 'wb') as f:
+                with open(output_path, 'wb') as f:
                     f.write(r.content)
-                return filename
-        except Exception as e:
-            logger.error(f"    ⚠️ Error descargando capa {nombre_capa}: {e}")
+                return output_path
+        except Exception:
+            pass
         return None
 
     def descargar_capas_multiples(self, referencia, coords, output_dir: Path):
-        """Descarga todas las capas WMS"""
-        ref = self.limpiar_referencia(referencia)
-        
-        logger.info("  🗺️ Descargando capas WMS...")
-        capas_descargadas = {}
-        for nombre, layer in self.capas_wms.items():
-            filename = self.descargar_capa_wms(ref, coords, nombre, layer, output_dir)
-            if filename:
-                capas_descargadas[nombre] = filename
-                logger.info(f"    ✅ Capa {nombre}")
-
-        if PILLOW_AVAILABLE and capas_descargadas:
-            self.crear_composicion_capas(ref, capas_descargadas, coords, output_dir)
-        
-        return len(capas_descargadas) > 0
+        """
+        Versión mejorada: Llama al generador multi-escala.
+        Mantiene compatibilidad con el nombre anterior.
+        """
+        logger.info("  🗺️ Generando Ortofotos Multi-Escala y Capas...")
+        resultados = self.descargar_set_capas_completo(referencia, coords, output_dir)
+        return len(resultados) > 0
 
     def crear_composicion_capas(self, referencia, capas_descargadas, coords, output_dir: Path):
-        """Crea composición con silueta de parcela pintada"""
-        if not PILLOW_AVAILABLE:
-            return False
-        
-        images_dir = output_dir / "images"
-        images_dir.mkdir(exist_ok=True)
-        
-        try:
-            orden = ['ortofoto', 'catastro', 'callejero', 'hidrografia']
-            imagen_base = None
-            for capa in orden:
-                if capa in capas_descargadas:
-                    img = Image.open(capas_descargadas[capa]).convert('RGBA')
-                    if imagen_base is None:
-                        imagen_base = img
-                    else:
-                        imagen_base = Image.alpha_composite(imagen_base, img)
-
-            if imagen_base is None:
-                return False
-
-            # Añadir texto
-            draw = ImageDraw.Draw(imagen_base)
-            try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
-            except Exception:
-                font = ImageFont.load_default()
-
-            text = f"RC: {referencia}"
-            bbox = draw.textbbox((10, 10), text, font=font)
-            draw.rectangle([bbox[0]-8, bbox[1]-8, bbox[2]+8, bbox[3]+8], fill=(0, 51, 102, 200))
-            draw.text((10, 10), text, fill='white', font=font)
-
-            filename = images_dir / f"{referencia}_composicion_completa.png"
-            imagen_base.save(filename)
-            logger.info("  ✅ Composición con silueta creada")
-            return True
-        except Exception as e:
-            logger.error(f"  ⚠️ Error creando composición: {e}")
-        return False
+        # Deprecado en favor de descargar_set_capas_completo que baja las capas separadas
+        # para permitir control de opacidad en el cliente.
+        pass
 
     def analizar_afectaciones(self, referencia, archivo_gml_parcela, output_dir: Path):
         """Analiza afectaciones y guarda en carpeta json"""
