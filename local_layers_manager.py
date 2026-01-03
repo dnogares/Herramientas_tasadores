@@ -145,14 +145,21 @@ class LocalLayersManager:
             return None
         
         try:
-            # Calcular bbox
+            # Calcular bbox con límites de tamaño
             lon, lat = coords['lon'], coords['lat']
+            
+            # Limitar buffer para evitar imágenes demasiado grandes
+            max_buffer = 10000  # Máximo 10km
+            if buffer_metros > max_buffer:
+                buffer_metros = max_buffer
+                logger.warning(f"Buffer reducido a {max_buffer}m para evitar imágenes demasiado grandes")
+            
             buffer_lon = buffer_metros / 85000
             buffer_lat = buffer_metros / 111000
             bbox = (lon - buffer_lon, lat - buffer_lat, lon + buffer_lon, lat + buffer_lat)
             
-            # Configurar figura con tamaño controlado para evitar errores de memoria
-            fig, ax = plt.subplots(figsize=(10, 10), dpi=150)  # Tamaño moderado
+            # Configurar figura con tamaño controlado
+            fig, ax = plt.subplots(figsize=(8, 8), dpi=100)  # Tamaño pequeño y controlado
             ax.set_aspect('equal')
             
             # Fondo base
@@ -182,11 +189,11 @@ class LocalLayersManager:
             # Si no hay capas dibujadas, crear una imagen de referencia
             if capas_dibujadas == 0:
                 ax.text(0.5, 0.5, f'Área de estudio\nReferencia: {referencia}\nBuffer: {buffer_metros}m\n\n(Sin capas locales en esta zona)', 
-                       ha='center', va='center', fontsize=14, color='gray', 
+                       ha='center', va='center', fontsize=12, color='gray', 
                        bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.8))
             
             # Añadir punto de referencia
-            ax.plot(lon, lat, 'r*', markersize=25, label=f'Referencia: {referencia}')
+            ax.plot(lon, lat, 'r*', markersize=20, label=f'Referencia: {referencia}')
             
             # Configurar ejes y límites
             ax.set_xlim(bbox[0], bbox[2])
@@ -202,7 +209,7 @@ class LocalLayersManager:
             output_dir.mkdir(parents=True, exist_ok=True)
             
             filename = output_dir / f"ortofoto_local_{buffer_metros}m.png"
-            plt.savefig(filename, dpi=100, bbox_inches='tight', facecolor='white', pad_inches=0.1)
+            plt.savefig(filename, dpi=80, bbox_inches='tight', facecolor='white', pad_inches=0.1)
             plt.close()
             
             logger.info(f"Ortofoto local generada: {filename}")
