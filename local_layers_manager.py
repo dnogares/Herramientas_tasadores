@@ -159,7 +159,7 @@ class LocalLayersManager:
             bbox = (lon - buffer_lon, lat - buffer_lat, lon + buffer_lon, lat + buffer_lat)
             
             # Configurar figura con tamaño controlado
-            fig, ax = plt.subplots(figsize=(8, 8), dpi=100)  # Tamaño pequeño y controlado
+            fig, ax = plt.subplots(figsize=(6, 6), dpi=50)  # Tamaño muy pequeño: 300x300px
             ax.set_aspect('equal')
             
             # Fondo base
@@ -209,7 +209,7 @@ class LocalLayersManager:
             output_dir.mkdir(parents=True, exist_ok=True)
             
             filename = output_dir / f"ortofoto_local_{buffer_metros}m.png"
-            plt.savefig(filename, dpi=80, bbox_inches='tight', facecolor='white', pad_inches=0.1)
+            plt.savefig(filename, dpi=50, bbox_inches='tight', facecolor='white', pad_inches=0.1)
             plt.close()
             
             logger.info(f"Ortofoto local generada: {filename}")
