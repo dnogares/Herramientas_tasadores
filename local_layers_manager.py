@@ -158,9 +158,13 @@ class LocalLayersManager:
             buffer_lat = buffer_metros / 111000
             bbox = (lon - buffer_lon, lat - buffer_lat, lon + buffer_lon, lat + buffer_lat)
             
-            # Configurar figura con tamaño controlado
-            fig, ax = plt.subplots(figsize=(6, 6), dpi=50)  # Tamaño muy pequeño: 300x300px
+            # Configurar figura con tamaño absoluto para evitar cálculos automáticos
+            fig, ax = plt.subplots(figsize=(4, 4), dpi=25)  # Tamaño fijo: 100x100px
             ax.set_aspect('equal')
+            
+            # Forzar límites de ejes para controlar el área
+            ax.set_xlim(lon - 0.1, lon + 0.1)
+            ax.set_ylim(lat - 0.1, lat + 0.1)
             
             # Fondo base
             ax.set_facecolor('#f0f8ff')
