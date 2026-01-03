@@ -475,6 +475,53 @@ class CatastroCompleteDownloader:
                 
         return resultados
 
+    def descargar_pdf_sigpac(self, referencia, coords, output_dir: Path):
+        """Descarga el informe gráfico oficial del SIGPAC (PDF)"""
+        if not coords: return None
+        
+        try:
+            # Necesitamos coord UTM para el SIGPAC
+            utm_x, utm_y = 0, 0
+            if GEOPANDAS_AVAILABLE:
+                from shapely.geometry import Point
+                gdf = gpd.GeoDataFrame(geometry=[Point(coords['lon'], coords['lat'])], crs='EPSG:4326')
+                gdf_utm = gdf.to_crs('EPSG:25830')
+                utm_x, utm_y = int(gdf_utm.geometry.x[0]), int(gdf_utm.geometry.y[0])
+            else:
+                return None # Sin geopandas no podemos calcular UTM fiable
+
+            logger.info("  📄 Solicitando PDF Oficial SIGPAC...")
+            print_url = 'https://sigpac.mapa.gob.es/sigpublico/visor/imprimir'
+            spec = {
+                'layout': 'A4 horizontal',
+                'outputFormat': 'pdf',
+                'attributes': {'title': f"SIGPAC - RC: {referencia}"},
+                'layers': [{'type': 'WMS', 'baseURL': 'https://wms.mapa.gob.es/wms-inspire/sigpac', 'layers': ['SIGPAC']}],
+                'center': [utm_x, utm_y],
+                'scale': 2000, 
+                'srs': 'EPSG:25830'
+            }
+            
+            # Usar requests directo con timeout
+            import requests
+            r = requests.post(print_url, json={'spec': spec}, timeout=60)
+            
+            if r.status_code == 200 and r.headers.get('Content-Type', '').startswith('application/pdf'):
+                pdf_down_dir = output_dir / "pdf"
+                pdf_down_dir.mkdir(exist_ok=True)
+                pdf_path = pdf_down_dir / f"{referencia}_informe_sigpac.pdf"
+                with open(pdf_path, 'wb') as f:
+                    f.write(r.content)
+                logger.info("    ✅ PDF SIGPAC guardado")
+                return pdf_path
+            else:
+                logger.warning(f"Error SIGPAC status: {r.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error descargando PDF SIGPAC: {e}")
+            return None
+
     def descargar_todo_completo(self, referencia: str):
         """Orquestador principal para una referencia: descarga datos, GML, PDF y genera Ortofotos"""
         ref = self.limpiar_referencia(referencia)
@@ -496,18 +543,31 @@ class CatastroCompleteDownloader:
             self.descargar_parcela_gml(ref, output_dir)
             self.descargar_edificio_gml(ref, output_dir)
             
-            # 3. Ficha PDF
+            # 3. Ficha Catastral
             self.descargar_ficha_catastral(ref, output_dir)
-            
-            # 4. Ortofotos Multi-Escala y Siluetas (INTEGRADO AQUI)
+
+            # 4. Ortofotos Multi-Escala y Siluetas
             coords = None
             if data and 'geo' in data:
                 coords = {'lon': float(data['geo']['xcen']), 'lat': float(data['geo']['ycen'])}
             
+            # Intentar fallback de coordenadas con GML si JSON falló
+            if not coords:
+                # Buscar GML
+                gml_path = output_dir / "gml" / f"{ref}_parcela.gml"
+                if gml_path.exists():
+                     coords_utm = self.extraer_coordenadas_desde_gml(gml_path)
+                     if coords_utm:
+                         c_wgs = self.utm_a_wgs84(coords_utm['x_utm'], coords_utm['y_utm'])
+                         if c_wgs:
+                             coords = c_wgs
+
             if coords:
                 self.descargar_set_capas_completo(ref, coords, output_dir)
+                # 5. PDF SIGPAC (Nuevo)
+                self.descargar_pdf_sigpac(ref, coords, output_dir)
 
-            # 5. Crear ZIP final
+            # 6. Crear ZIP final
             zip_path = self.crear_zip_referencia(ref, output_dir)
             return True, zip_path
             
