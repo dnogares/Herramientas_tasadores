@@ -383,14 +383,15 @@ function displayOrtophotos(data) {
     if (zoom4 && zoom4.layers) {
         document.getElementById('layer-base').src = zoom4.layers.base || '';
         document.getElementById('layer-overlay').src = zoom4.layers.overlay || '';
-        document.getElementById('layer-labels').src = zoom4.layers.labels || ''; // Si existiese
+        document.getElementById('layer-silhouette').src = zoom4.layers.silhouette || '';
+        document.getElementById('layer-labels').src = zoom4.layers.labels || '';
         document.getElementById('layer-viewer').classList.remove('hidden');
     }
 
     // 2. Generar Galería de Miniaturas
     const container = document.getElementById('ortho-preview');
     container.innerHTML = data.ortophotos.map(ortho => `
-        <div class="ortho-item" onclick="loadViewerLayer('${ortho.layers.base}', '${ortho.layers.overlay}')" style="cursor: pointer;">
+        <div class="ortho-item" onclick="loadViewerLayer('${ortho.layers.base}', '${ortho.layers.overlay}', '${ortho.layers.silhouette}')" style="cursor: pointer;">
             <div class="ortho-img">
                 <img src="${ortho.url}" style="width: 100%; height: 100%; object-fit: cover;">
             </div>
@@ -409,9 +410,10 @@ function updateOpacity(val) {
     document.getElementById('opacity-val').textContent = val + '%';
 }
 
-function loadViewerLayer(base, overlay) {
+function loadViewerLayer(base, overlay, silhouette) {
     document.getElementById('layer-base').src = base;
     document.getElementById('layer-overlay').src = overlay;
+    document.getElementById('layer-silhouette').src = silhouette || '';
     document.getElementById('layer-viewer').scrollIntoView({ behavior: 'smooth' });
 }
 

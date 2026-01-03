@@ -300,14 +300,63 @@ class CatastroCompleteDownloader:
         
         return f"{lon_centro - delta_lon},{lat_centro - delta_lat},{lon_centro + delta_lon},{lat_centro + delta_lat}"
 
+    def generar_silueta_png(self, gml_path: Path, bbox_str: str, output_path: Path):
+        """Genera PNG transparente con silueta roja alineada perfectamente con el BBOX"""
+        if not GEOPANDAS_AVAILABLE or not gml_path or not gml_path.exists():
+            return None
+        
+        try:
+            import matplotlib.pyplot as plt
+            gdf = gpd.read_file(gml_path)
+            if gdf.empty: return None
+
+            # Asegurar CRS EPSG:4326
+            if gdf.crs is None:
+                gdf.set_crs("EPSG:25830", inplace=True) # GML Catastro suele venir en UTM 30N
+            
+            target_crs = "EPSG:4326"
+            if gdf.crs.to_string() != target_crs:
+                gdf = gdf.to_crs(target_crs)
+
+            # Parsear bbox
+            coords = [float(x) for x in bbox_str.split(',')]
+            minx, miny, maxx, maxy = coords[0], coords[1], coords[2], coords[3]
+
+            # Configurar figura para coincidir pixel a pixel con 1600x1600 del WMS
+            fig = plt.figure(figsize=(16, 16), dpi=100)
+            ax = plt.Axes(fig, [0., 0., 1., 1.]) # Ocupar toda la figura sin bordes
+            ax.set_axis_off()
+            fig.add_axes(ax)
+
+            # Fijar límites exactos del mapa
+            ax.set_xlim(minx, maxx)
+            ax.set_ylim(miny, maxy)
+
+            # Dibujar silueta (Relleno semi-transparente rojo, Borde rojo solido)
+            gdf.plot(ax=ax, facecolor=(1, 0, 0, 0.2), edgecolor='red', linewidth=3)
+            
+            fig.savefig(str(output_path), transparent=True, dpi=100)
+            plt.close(fig)
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Error generando silueta: {e}")
+            return None
+
     def descargar_set_capas_completo(self, referencia, coords, output_dir: Path):
         """
-        Descarga el set completo de 4 ortofotos + capas superpuestas
+        Descarga el set completo de 4 ortofotos + capas superpuestas + silueta
         Todas comparten el mismo BBOX para poder superponerse perfectamente.
         """
         ref = self.limpiar_referencia(referencia)
         images_dir = output_dir / "images"
         images_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Buscar el GML de parcela ya descargado para generar la silueta
+        gml_path = output_dir / "gml" / f"{ref}_parcela.gml"
+        # Si no existe, intentar descargarlo
+        if not gml_path.exists():
+            gml_path = self.descargar_parcela_gml(ref, output_dir)
         
         lon, lat = coords['lon'], coords['lat']
         
@@ -340,10 +389,17 @@ class CatastroCompleteDownloader:
                 bbox, "Callejero", images_dir / f"{ref}_Callejero_{suffix}.png", transparent=True
             )
             
+            # 4. Silueta Vectorial - Transparente (Nueva funcionalidad)
+            path_silueta = self.generar_silueta_png(
+                gml_path, bbox, images_dir / f"{ref}_Silueta_{suffix}.png"
+            )
+            
             resumen_descargas.append({
                 "nivel": nombre_nivel,
                 "ortofoto": str(path_orto) if path_orto else None,
-                "catastro": str(path_cat) if path_cat else None
+                "catastro": str(path_cat) if path_cat else None,
+                "callejero": str(path_call) if path_call else None,
+                "silueta": str(path_silueta) if path_silueta else None
             })
             
             logger.info(f"    📷 Generado Zoom {nivel}: {nombre_nivel}")
@@ -375,6 +431,77 @@ class CatastroCompleteDownloader:
         except Exception:
             pass
         return None
+
+    def procesar_lote(self, referencias: list):
+        """Procesa una lista de referencias completa incluyendo ortofotos"""
+        resultados = {}
+        processed = 0
+        total = len(referencias)
+        
+        logger.info(f"📦 Iniciando lote de {total} referencias...")
+        
+        for ref in referencias:
+            processed += 1
+            if not ref or len(ref) < 14:
+                continue
+                
+            try:
+                logger.info(f"  [{processed}/{total}] Procesando {ref}...")
+                exito, zip_path = self.descargar_todo_completo(ref)
+                
+                # ADICIONAL: Asegurar generación de capas multi-escala para el ZIP
+                if exito:
+                    # Recuperar coordenadas (ya descargadas en info.json o calcular de nuevo)
+                    # En este punto asumimos que descargar_todo_completo ha creado la estructura
+                    # Pero descargar_todo_completo NO llama por defecto a multi-escala aun si no lo integro.
+                    pass
+                
+                resultados[ref] = (exito, zip_path)
+            except Exception as e:
+                logger.error(f"  ❌ Error en lote {ref}: {e}")
+                resultados[ref] = (False, None)
+                
+        return resultados
+
+    def descargar_todo_completo(self, referencia: str):
+        """Orquestador principal para una referencia: descarga datos, GML, PDF y genera Ortofotos"""
+        ref = self.limpiar_referencia(referencia)
+        output_dir = self.base_output_dir / ref
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # 1. Datos básicos JSON
+            data = self.obtener_datos_basicos(ref)
+            with open(output_dir / "info.json", "w", encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            # HTML descriptivo
+            html_content = self.generar_html_descriptivo(data, ref)
+            with open(output_dir / f"{ref}_info.html", "w", encoding='utf-8') as f:
+                f.write(html_content)
+
+            # 2. Geometría GML (Vital para silueta)
+            self.descargar_parcela_gml(ref, output_dir)
+            self.descargar_edificio_gml(ref, output_dir)
+            
+            # 3. Ficha PDF
+            self.descargar_ficha_catastral(ref, output_dir)
+            
+            # 4. Ortofotos Multi-Escala y Siluetas (INTEGRADO AQUI)
+            coords = None
+            if data and 'geo' in data:
+                coords = {'lon': float(data['geo']['xcen']), 'lat': float(data['geo']['ycen'])}
+            
+            if coords:
+                self.descargar_set_capas_completo(ref, coords, output_dir)
+
+            # 5. Crear ZIP final
+            zip_path = self.crear_zip_referencia(ref, output_dir)
+            return True, zip_path
+            
+        except Exception as e:
+            logger.error(f"Error global descargando {ref}: {e}")
+            return False, None
 
     def descargar_capas_multiples(self, referencia, coords, output_dir: Path):
         """

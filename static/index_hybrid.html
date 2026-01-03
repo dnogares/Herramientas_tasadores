@@ -527,10 +527,33 @@
                         <button class="tab-btn active" onclick="switchTab('single')">
                             <i class="fas fa-search"></i> Individual
                         </button>
-                        <button class="tab-btn" onclick="switchTab('batch')">
-                            <i class="fas fa-list"></i> Lotes
-                        </button>
+                    </div>
 
+                    <!-- Tab 1: Análisis Individual -->
+                    <div id="tab-single" class="tab-content active">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-search"></i> Análisis Individual</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="ref-input">Referencia Catastral</label>
+                                    <input type="text" id="ref-input" class="input-main"
+                                        placeholder="Ej: 9872023 VH5797S 0001 WX" maxlength="20">
+                                </div>
+                                <div class="action-buttons">
+                                    <button onclick="analyzeSingle()" class="btn-hybrid btn-primary-hybrid">
+                                        <i class="fas fa-magic"></i> Analizar Referencia
+                                    </button>
+                                    <button onclick="window.location.href='/static/report_complete.html'"
+                                        class="btn-hybrid btn-info-hybrid" disabled>
+                                        <i class="fas fa-file-pdf"></i> Generar Informe
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Estadísticas del análisis -->
                         <div id="analysis-stats" class="summary-stats" style="display: none;">
                             <div class="stat-item">
                                 <span class="stat-number" id="stat-layers">0</span>
@@ -566,17 +589,20 @@
 
                                     <div class="layers-container"
                                         style="position: relative; width: 100%; height: 500px; background: #eee; border: 1px solid #ccc; overflow: hidden; border-radius: 8px;">
+                                        <!-- Orden de capas: Base -> Catastro -> Silueta -> Etiquetas -->
                                         <img id="layer-base" src=""
                                             style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain;">
                                         <img id="layer-overlay" src=""
                                             style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.5;">
+                                        <img id="layer-silhouette" src=""
+                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; pointer-events: none; z-index: 10;">
                                         <img id="layer-labels" src=""
-                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.8; pointer-events: none;">
+                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.8; pointer-events: none; z-index: 20;">
                                     </div>
 
                                     <div class="mt-2 text-center">
-                                        <small class="text-muted">Mostrando Nivel 4 (Parcela). Haz clic en las
-                                            miniaturas para cambiar el zoom.</small>
+                                        <small class="text-muted">Mostrando Nivel 4 (Parcela). Silueta de parcela
+                                            marcada en rojo.</small>
                                     </div>
                                 </div>
                                 <div class="ortho-preview mt-3" id="ortho-preview"></div>

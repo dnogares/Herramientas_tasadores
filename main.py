@@ -489,7 +489,8 @@ async def generate_ortophotos(payload: dict = Body(...)):
                 "layers": {
                     "base": f"{base_url}/{Path(res['ortofoto']).name}" if res['ortofoto'] else None,
                     "overlay": f"{base_url}/{Path(res['catastro']).name}" if res['catastro'] else None,
-                    "labels": f"{base_url}/{Path(res.get('callejero', '')).name}" if res.get('callejero') else None # Callejero si existe en el futuro
+                    "silhouette": f"{base_url}/{Path(res['silueta']).name}" if res.get('silueta') else None,
+                    "labels": f"{base_url}/{Path(res.get('callejero', '')).name}" if res.get('callejero') else None
                 },
                 # Compatibilidad con visor antiguo (muestra solo ortofoto si falla visor nuevo)
                 "url": f"{base_url}/{Path(res['ortofoto']).name}" if res['ortofoto'] else ""
