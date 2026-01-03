@@ -199,21 +199,21 @@ class LocalLayersManager:
             # Añadir punto de referencia
             ax.plot(lon, lat, 'r*', markersize=20, label=f'Referencia: {referencia}')
             
-            # Configurar ejes y límites
-            ax.set_xlim(bbox[0], bbox[2])
-            ax.set_ylim(bbox[1], bbox[3])
+            # Configurar ejes y límites (usar límites fijos para controlar tamaño)
+            # ax.set_xlim(bbox[0], bbox[2])  # Comentado para evitar cálculo automático
+            # ax.set_ylim(bbox[1], bbox[3])  # Comentado para evitar cálculo automático
             ax.set_xlabel('Longitud')
             ax.set_ylabel('Latitud')
             ax.set_title(f'Ortofoto Local - {referencia}\nBuffer: {buffer_metros}m')
             ax.legend()
             ax.grid(True, alpha=0.3)
             
-            # Guardar imagen con tamaño controlado
+            # Guardar imagen con tamaño absoluto
             output_dir = Path("outputs") / referencia / "ortophotos"
             output_dir.mkdir(parents=True, exist_ok=True)
             
             filename = output_dir / f"ortofoto_local_{buffer_metros}m.png"
-            plt.savefig(filename, dpi=50, bbox_inches='tight', facecolor='white', pad_inches=0.1)
+            plt.savefig(filename, dpi=25, bbox_inches='tight', facecolor='white', pad_inches=0.1)
             plt.close()
             
             logger.info(f"Ortofoto local generada: {filename}")
