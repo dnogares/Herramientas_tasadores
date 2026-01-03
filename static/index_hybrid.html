@@ -531,7 +531,7 @@
                             <i class="fas fa-list"></i> Lotes
                         </button>
                         <button class="tab-btn" onclick="switchTab('kml')">
-                            <i class="fas fa-map-marked"></i> KML
+                            <i class="fas fa-globe-europe"></i> Visor GIS
                         </button>
                     </div>
 
@@ -579,41 +579,7 @@
                             </div>
                         </div>
 
-                        <!-- Visor Integrado de Ortofotos y Opacidad -->
-                        <div id="layer-viewer-container" class="card mt-lg hidden">
-                            <div class="card-header">
-                                <h3><i class="fas fa-satellite"></i> Visualización Multi-Escala</h3>
-                            </div>
-                            <div class="card-body">
-                                <div id="layer-viewer">
-                                    <div class="viewer-controls mb-3">
-                                        <label for="opacity-slider">Opacidad Catastro: <span
-                                                id="opacity-val">50%</span></label>
-                                        <input type="range" id="opacity-slider" class="range-slider" min="0" max="100"
-                                            value="50" oninput="updateOpacity(this.value)">
-                                    </div>
-
-                                    <div class="layers-container"
-                                        style="position: relative; width: 100%; height: 500px; background: #eee; border: 1px solid #ccc; overflow: hidden; border-radius: 8px;">
-                                        <!-- Orden de capas: Base -> Catastro -> Silueta -> Etiquetas -->
-                                        <img id="layer-base" src=""
-                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain;">
-                                        <img id="layer-overlay" src=""
-                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.5;">
-                                        <img id="layer-silhouette" src=""
-                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; pointer-events: none; z-index: 10;">
-                                        <img id="layer-labels" src=""
-                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.8; pointer-events: none; z-index: 20;">
-                                    </div>
-
-                                    <div class="mt-2 text-center">
-                                        <small class="text-muted">Mostrando Nivel 4 (Parcela). Silueta de parcela
-                                            marcada en rojo.</small>
-                                    </div>
-                                </div>
-                                <div class="ortho-preview mt-3" id="ortho-preview"></div>
-                            </div>
-                        </div>
+                        <!-- Visor MOVIDO A PESTAÑA GIS -->
 
                         <div class="card mt-lg">
                             <div class="card-header">
@@ -720,11 +686,56 @@
                         </div>
                     </div>
 
-                    <!-- Tab 3: Cruce de KML -->
+                    <!-- Tab 3: Visor GIS y Análisis KML -->
                     <div id="tab-kml" class="tab-content">
+                        <!-- SECCION 1: VISOR MULTI-CAPA -->
+                        <div id="layer-viewer-container" class="card mb-3 hidden">
+                            <div class="card-header bg-dark text-white">
+                                <h3><i class="fas fa-satellite"></i> Visor GIS & Ortofotos</h3>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="layer-viewer">
+                                    <div class="viewer-controls p-2 bg-light border-bottom">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <label for="opacity-slider" class="mr-2 font-weight-bold">Opacidad Capa
+                                                    Sup:</label>
+                                                <input type="range" id="opacity-slider" class="range-slider"
+                                                    style="width: 200px;" min="0" max="100" value="50"
+                                                    oninput="updateOpacity(this.value)">
+                                                <span id="opacity-val" class="ml-1">50%</span>
+                                            </div>
+                                            <div>
+                                                <small class="text-muted">Capas alineadas (1600x1600)</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="layers-container"
+                                        style="position: relative; width: 100%; height: 600px; background: #e0e0e0; overflow: hidden;">
+                                        <!-- Orden de capas: Base -> Catastro -> Silueta -> Etiquetas/KML -->
+                                        <img id="layer-base" src=""
+                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain;">
+                                        <img id="layer-overlay" src=""
+                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.5;">
+                                        <img id="layer-silhouette" src=""
+                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; pointer-events: none; z-index: 10;">
+                                        <img id="layer-labels" src=""
+                                            style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; opacity: 0.8; pointer-events: none; z-index: 20;">
+                                    </div>
+
+                                    <div class="ortho-preview p-2 bg-light border-top" id="ortho-preview"
+                                        style="display: flex; gap: 10px; overflow-x: auto;">
+                                        <!-- Miniaturas aquí -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCION 2: HERRAMIENTAS KML -->
                         <div class="card">
                             <div class="card-header">
-                                <h3><i class="fas fa-map-marked"></i> Cruce de Capas KML</h3>
+                                <h3><i class="fas fa-draw-polygon"></i> Cruce de Capas KML</h3>
                             </div>
                             <div class="card-body">
                                 <div class="kml-drop-zone" onclick="document.getElementById('kml-input').click()">
@@ -817,7 +828,7 @@
 
     </div>
 
-    <script src="/static/js/tasador_hybrid.js?v=4.1"></script>
+    <script src="/static/js/tasador_hybrid.js?v=5.0"></script>
 </body>
 
 </html>

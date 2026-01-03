@@ -113,6 +113,10 @@ async function analyzeSingle() {
                     // Mostrar contenedor y cargar datos
                     document.getElementById('layer-viewer-container').classList.remove('hidden');
                     displayOrtophotos(orthoData);
+
+                    // CAMBIO A PESTAÑA VISOR GIS
+                    UI.log('🔄 Abriendo Visor GIS...', 'info');
+                    switchTab('kml');
                 }
             } catch (e) {
                 UI.log('⚠️ No se pudieron cargar las ortofotos', 'warning');
