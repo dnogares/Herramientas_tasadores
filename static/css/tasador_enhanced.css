@@ -635,11 +635,6 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Asegurar que siempre sea visible */
-.opacity-control.hidden {
-    display: none !important;
-}
-
 .opacity-label {
     font-size: 12px;
     margin-bottom: 8px;
