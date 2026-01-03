@@ -427,7 +427,7 @@ async function analyzeKMLIntersection() {
 
     const formData = new FormData();
     AppState.kmlFiles.forEach(file => {
-        formData.append('files', file);
+        formData.append('kml_files', file);
     });
 
     try {
