@@ -85,20 +85,21 @@ async function loadReferenceData() {
 function displayAnalysisData(data) {
     const content = document.getElementById('viewer-content');
     
-    // Validar que existan los datos de análisis
-    if (!data.analisis || !data.analisis.resumen) {
-        showError('Datos de análisis incompletos');
+    // Validar que existan los datos de análisis - permitir datos mínimos
+    if (!data.analisis) {
+        showError('No se encontraron datos de análisis');
         return;
     }
     
-    // Resumen del análisis
-    const resumen = data.analisis.resumen;
+    // Resumen del análisis - usar valores por defecto si no existen
+    const resumen = data.analisis.resumen || {};
     const coordenadas = data.coordenadas;
     
     let html = '<div class="analysis-summary">';
     html += '<div class="summary-title"><i class="fas fa-chart-pie"></i> Resumen del Análisis</div>';
     html += '<div class="summary-stats">';
-    html += '<div class="summary-stat"><span class="summary-label">Capas totales</span><span class="summary-value">' + (resumen.total_capas || 0) + '</span></div>';
+    html += '<div class="summary-stat"><span class="summary-label">Referencia</span><span class="summary-value">' + (data.ref || 'N/A') + '</span></div>';
+    html += '<div class="summary-stat"><span class="summary-label">Capas procesadas</span><span class="summary-value">' + (resumen.total_capas || 0) + '</span></div>';
     html += '<div class="summary-stat"><span class="summary-label">Con afectación</span><span class="summary-value">' + (resumen.capas_afectan || 0) + '</span></div>';
     html += '<div class="summary-stat"><span class="summary-label">Superficie afectada</span><span class="summary-value">' + (resumen.superficie_total_afectada || 'N/A') + '</span></div>';
     html += '<div class="summary-stat"><span class="summary-label">Archivos generados</span><span class="summary-value">' + (resumen.archivos_generados || 0) + '</span></div>';
@@ -117,50 +118,71 @@ function displayAnalysisData(data) {
     html += '<div class="layers-list">';
     html += '<h3><i class="fas fa-layer-group"></i> Capas Generadas</h3>';
     
-    // Lista de capas
-    if (data.analisis.capas_procesadas && data.analisis.capas_procesadas.length > 0) {
-        data.analisis.capas_procesadas.forEach((capa, index) => {
-        const statusClass = getStatusClass(capa.estado);
-        const hasImage = capa.png_url;
-        const hasKml = capa.kml_url;
-        const hasJson = capa.json_url;
-        
-        let actionsHtml = '';
-        if (hasImage) {
-            actionsHtml += '<a href="' + capa.png_url + '" target="_blank" class="layer-action-btn" onclick="event.stopPropagation()"><i class="fas fa-image"></i> Ver</a>';
-        }
-        if (hasKml) {
-            actionsHtml += '<a href="' + capa.kml_url + '" target="_blank" class="layer-action-btn" onclick="event.stopPropagation()"><i class="fas fa-map-marked"></i> KML</a>';
-        }
-        if (hasJson) {
-            actionsHtml += '<a href="' + capa.json_url + '" target="_blank" class="layer-action-btn" onclick="event.stopPropagation()"><i class="fas fa-file-code"></i> JSON</a>';
-        }
-        
-        let detailsHtml = '';
-        if (capa.superficie !== 'N/A') {
-            detailsHtml += 'Superficie: ' + capa.superficie;
-        }
-        if (capa.porcentaje) {
-            detailsHtml += ' | Afectación: ' + capa.porcentaje;
-        }
-        if (capa.categoria) {
-            detailsHtml += '<br>Categoría: ' + capa.categoria;
-        }
-        if (capa.impacto) {
-            detailsHtml += ' | Impacto: ' + capa.impacto;
-        }
-        
-        html += '<div class="layer-item" id="layer-' + index + '" onclick="toggleLayer(' + index + ', \'' + capa.nombre + '\', \'' + (capa.png_url || '') + '\', \'' + (capa.kml_url || '') + '\')">';
-        html += '<div class="layer-header">';
-        html += '<div class="layer-title">' + capa.nombre + '</div>';
-        html += '<div class="layer-status ' + statusClass + '">' + capa.estado + '</div>';
-        html += '</div>';
-        html += '<div class="layer-details">' + detailsHtml + '</div>';
-        html += '<div class="layer-actions">' + actionsHtml + '</div>';
-        html += '</div>';
-    });
+    // Lista de capas - manejar diferentes estructuras
+    let capasProcesadas = [];
+    
+    if (data.analisis.capas_procesadas && Array.isArray(data.analisis.capas_procesadas)) {
+        capasProcesadas = data.analisis.capas_procesadas;
+    } else if (data.analisis.wms_layers) {
+        // Convertir WMS layers a capas procesadas
+        Object.entries(data.analisis.wms_layers).forEach(([key, url]) => {
+            capasProcesadas.push({
+                nombre: key,
+                estado: 'Generada',
+                png_url: url,
+                tipo: 'WMS'
+            });
+        });
+    }
+    
+    // Añadir ortofotos si existen
+    if (data.ortophotos && Array.isArray(data.ortophotos)) {
+        data.ortophotos.forEach((ortofoto, index) => {
+            capasProcesadas.push({
+                nombre: ortofoto.title,
+                estado: 'Generada',
+                png_url: ortofoto.url,
+                tipo: 'Ortofoto',
+                buffer: ortofoto.buffer
+            });
+        });
+    }
+    
+    if (capasProcesadas.length === 0) {
+        html += '<div class="text-center py-lg"><i class="fas fa-info-circle text-muted"></i><p class="text-muted">No se encontraron capas procesadas</p></div>';
     } else {
-        html += '<div class="no-analysis"><i class="fas fa-layer-group"></i><h3>Sin capas procesadas</h3><p>No se encontraron capas para esta referencia</p></div>';
+        capasProcesadas.forEach((capa, index) => {
+            const statusClass = getStatusClass(capa.estado);
+            const hasImage = capa.png_url;
+            const hasKml = capa.kml_url;
+            const hasJson = capa.json_url;
+            
+            let actionsHtml = '';
+            if (hasImage) {
+                actionsHtml += `<button class="btn btn-sm btn-primary" onclick="toggleLayer(${index})">
+                    <i class="fas fa-eye"></i> Ver
+                </button>`;
+            }
+            
+            html += `
+                <div class="layer-item">
+                    <div class="layer-header">
+                        <div class="layer-info">
+                            <h4 class="layer-name">${capa.nombre}</h4>
+                            <span class="layer-status ${statusClass}">${capa.estado}</span>
+                        </div>
+                        <div class="layer-actions">
+                            ${actionsHtml}
+                        </div>
+                    </div>
+                    <div class="layer-details">
+                        <span class="layer-type">${capa.tipo || 'Desconocido'}</span>
+                        ${capa.superficie ? `<span class="layer-area">${capa.superficie}</span>` : ''}
+                        ${capa.buffer ? `<span class="layer-buffer">Buffer: ${capa.buffer}m</span>` : ''}
+                    </div>
+                </div>
+            `;
+        });
     }
     
     html += '</div>';
@@ -332,47 +354,36 @@ function calculateImageBounds(capa) {
     return null;
 }
 
-function toggleLayer(index, nombre, imageUrl, kmlUrl) {
-    const layerElement = document.getElementById('layer-' + index);
-    const isActive = layerElement.classList.contains('active');
-    
-    console.log(`[toggleLayer] index=${index}, isActive=${isActive}, imageUrl=${imageUrl}`);
-    
-    if (isActive) {
-        // Desactivar capa
-        layerElement.classList.remove('active');
-        
-        // Remover capa del mapa
-        if (currentLayers['image-' + index]) {
-            map.removeLayer(currentLayers['image-' + index]);
-            console.log(`[toggleLayer] Removed layer image-${index}`);
-        }
-        
-    } else {
-        // Activar capa
-        layerElement.classList.add('active');
-        
-        // Añadir capa al mapa
-        if (imageUrl && currentLayers['image-' + index]) {
-            currentLayers['image-' + index].addTo(map);
-            console.log(`[toggleLayer] Added layer image-${index} to map`);
+function toggleLayer(index) {
+    const layerKey = 'image-' + index;
+    const ortophotoKey = 'ortophoto-' + index;
             
-            // Mostrar control de opacidad y actualizar el índice
-            const opacityControl = document.getElementById('opacity-control');
-            opacityControl.classList.remove('hidden');
-            opacityControl.dataset.layerIndex = index;
+    console.log(`[toggleLayer] index=${index}`);
+            
+    // Verificar si es una capa de imagen u ortofoto
+    if (currentLayers[layerKey]) {
+        // Capa de imagen normal
+        if (map.hasLayer(currentLayers[layerKey])) {
+            map.removeLayer(currentLayers[layerKey]);
+            console.log(`[toggleLayer] Removed layer ${layerKey}`);
         } else {
-            console.warn(`[toggleLayer] No imageUrl or layer not found for index ${index}`);
+            currentLayers[layerKey].addTo(map);
+            console.log(`[toggleLayer] Added layer ${layerKey} to map`);
         }
-        
-        // Ajustar vista a la capa
-        if (analysisData && analysisData.coordenadas) {
-            const coords = [analysisData.coordenadas.lat, analysisData.coordenadas.lon];
-            map.setView(coords, 16);
+    } else if (currentLayers[ortophotoKey]) {
+        // Ortofoto
+        if (map.hasLayer(currentLayers[ortophotoKey])) {
+            map.removeLayer(currentLayers[ortophotoKey]);
+            console.log(`[toggleLayer] Removed ortophoto ${ortophotoKey}`);
+        } else {
+            currentLayers[ortophotoKey].addTo(map);
+            console.log(`[toggleLayer] Added ortophoto ${ortophotoKey} to map`);
         }
+    } else {
+        console.warn(`[toggleLayer] No layer found for index ${index}`);
     }
-    
-    // Siempre mostrar el control de opacidad
+            
+    // Mostrar control de opacidad
     showOpacityControl();
 }
 
