@@ -349,9 +349,21 @@ async function generateOrtophotos() {
 }
 
 function displayOrtophotos(data) {
+    if (!data.ortophotos || data.ortophotos.length === 0) return;
+
+    // 1. Cargar el Zoom 4 (Parcela) en el Visor Principal
+    const zoom4 = data.ortophotos.find(o => o.zoom === "Parcela") || data.ortophotos[data.ortophotos.length - 1]; // Fallback al último
+    if (zoom4 && zoom4.layers) {
+        document.getElementById('layer-base').src = zoom4.layers.base || '';
+        document.getElementById('layer-overlay').src = zoom4.layers.overlay || '';
+        document.getElementById('layer-labels').src = zoom4.layers.labels || ''; // Si existiese
+        document.getElementById('layer-viewer').classList.remove('hidden');
+    }
+
+    // 2. Generar Galería de Miniaturas
     const container = document.getElementById('ortho-preview');
-    container.innerHTML = data.ortophotos.map((ortho, index) => `
-        <div class="ortho-item">
+    container.innerHTML = data.ortophotos.map(ortho => `
+        <div class="ortho-item" onclick="loadViewerLayer('${ortho.layers.base}', '${ortho.layers.overlay}')" style="cursor: pointer;">
             <div class="ortho-img">
                 <img src="${ortho.url}" style="width: 100%; height: 100%; object-fit: cover;">
             </div>
@@ -359,9 +371,21 @@ function displayOrtophotos(data) {
                 <div class="ortho-title">${ortho.title}</div>
                 <div class="ortho-desc">${ortho.description}</div>
                 <small><i class="fas fa-search-plus"></i> Zoom: ${ortho.zoom}</small>
+                <div class="text-primary mt-2"><small>Click para ver en grande</small></div>
             </div>
         </div>
     `).join('');
+}
+
+function updateOpacity(val) {
+    document.getElementById('layer-overlay').style.opacity = val / 100;
+    document.getElementById('opacity-val').textContent = val + '%';
+}
+
+function loadViewerLayer(base, overlay) {
+    document.getElementById('layer-base').src = base;
+    document.getElementById('layer-overlay').src = overlay;
+    document.getElementById('layer-viewer').scrollIntoView({ behavior: 'smooth' });
 }
 
 // Análisis Urbanístico (v3)

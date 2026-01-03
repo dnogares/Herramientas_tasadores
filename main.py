@@ -455,6 +455,53 @@ async def kml_intersection(kml_files: List[UploadFile] = File(...)):
         "errors": errors
     }
 
+@app.post("/api/ortophotos/generate")
+async def generate_ortophotos(payload: dict = Body(...)):
+    """
+    Genera set completo de ortofotos + capas (4 niveles Zoom)
+    Devuelve URLs para visualización en frontend con opacidad.
+    """
+    ref = payload.get("referencia")
+    if not ref:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Falta referencia"})
+
+    try:
+        data = urban_engine.obtener_datos_catastrales(ref)
+        if data.get("status") == "error":
+            return JSONResponse(status_code=500, content=data)
+
+        coords = data.get("coordenadas")
+        if not coords:
+            return JSONResponse(status_code=500, content={"status": "error", "message": "No hay coordenadas"})
+
+        # Usar la nueva lógica multi-escala del descargador completo
+        resultados = catastro_complete.descargar_set_capas_completo(ref, coords, OUTPUT_DIR / ref)
+        
+        # Formatear respuesta para el frontend
+        ortophotos = []
+        for res in resultados:
+            # Construir URL relativa
+            base_url = f"/outputs/{ref}/images"
+            item = {
+                "title": f"Zoom {res['nivel']}",
+                "description": "Ortofoto + Catastro",
+                "zoom": res['nivel'],
+                "layers": {
+                    "base": f"{base_url}/{Path(res['ortofoto']).name}" if res['ortofoto'] else None,
+                    "overlay": f"{base_url}/{Path(res['catastro']).name}" if res['catastro'] else None,
+                    "labels": f"{base_url}/{Path(res.get('callejero', '')).name}" if res.get('callejero') else None # Callejero si existe en el futuro
+                },
+                # Compatibilidad con visor antiguo (muestra solo ortofoto si falla visor nuevo)
+                "url": f"{base_url}/{Path(res['ortofoto']).name}" if res['ortofoto'] else ""
+            }
+            ortophotos.append(item)
+
+        return {"status": "success", "ortophotos": ortophotos}
+
+    except Exception as e:
+        logger.error(f"Error generando ortofotos: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
 @app.post("/api/report/generate")
 @app.post("/api/report/custom")
 async def generate_final_report(
