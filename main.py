@@ -620,6 +620,23 @@ async def generate_final_report(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.get("/api/health/kml")
+async def check_kml_support():
+    """Verifica si el servidor tiene soporte para drivers KML"""
+    try:
+        import fiona
+        drivers = fiona.supported_drivers
+        kml_support = "KML" in drivers or "LIBKML" in drivers
+        return {
+            "status": "success",
+            "kml_support": kml_support,
+            "drivers": list(drivers.keys())
+        }
+    except ImportError:
+        return {"status": "error", "message": "Fiona no instalado"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     # Usar puerto configurado

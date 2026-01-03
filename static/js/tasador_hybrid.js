@@ -375,46 +375,134 @@ async function generateOrtophotos() {
     }
 }
 
-function displayOrtophotos(data) {
-    if (!data.ortophotos || data.ortophotos.length === 0) return;
+// Cruce de KML (v3)
+function handleKMLFiles(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
 
-    // 1. Cargar el Zoom 4 (Parcela) en el Visor Principal
-    const zoom4 = data.ortophotos.find(o => o.zoom === "Parcela") || data.ortophotos[data.ortophotos.length - 1]; // Fallback al último
-    if (zoom4 && zoom4.layers) {
-        document.getElementById('layer-base').src = zoom4.layers.base || '';
-        document.getElementById('layer-overlay').src = zoom4.layers.overlay || '';
-        document.getElementById('layer-silhouette').src = zoom4.layers.silhouette || '';
-        document.getElementById('layer-labels').src = zoom4.layers.labels || '';
-        document.getElementById('layer-viewer').classList.remove('hidden');
+    // Verificar extensiones
+    const validFiles = files.filter(f => f.name.toLowerCase().endsWith('.kml') || f.name.toLowerCase().endsWith('.kmz'));
+    AppState.kmlFiles = validFiles;
+
+    if (validFiles.length < files.length) {
+        UI.log(`⚠️ Se han ignorado archivos no KML/KMZ`, 'warning');
     }
 
-    // 2. Generar Galería de Miniaturas
-    const container = document.getElementById('ortho-preview');
-    container.innerHTML = data.ortophotos.map(ortho => `
-        <div class="ortho-item" onclick="loadViewerLayer('${ortho.layers.base}', '${ortho.layers.overlay}', '${ortho.layers.silhouette}')" style="cursor: pointer;">
-            <div class="ortho-img">
-                <img src="${ortho.url}" style="width: 100%; height: 100%; object-fit: cover;">
+    if (validFiles.length > 0) {
+        const list = document.getElementById('kml-file-items');
+        list.innerHTML = validFiles.map(f => `
+            <div class="file-item">
+                <div class="file-info">
+                    <i class="fas fa-file-code file-icon"></i>
+                    <div>
+                        <div class="file-name">${f.name}</div>
+                        <div class="file-size">${(f.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                </div>
             </div>
-            <div class="ortho-info">
-                <div class="ortho-title">${ortho.title}</div>
-                <div class="ortho-desc">${ortho.description}</div>
-                <small><i class="fas fa-search-plus"></i> Zoom: ${ortho.zoom}</small>
-                <div class="text-primary mt-2"><small>Click para ver en grande</small></div>
-            </div>
-        </div>
-    `).join('');
+        `).join('');
+        document.getElementById('kml-files-list').classList.remove('hidden');
+        document.getElementById('btn-analyze-kml').disabled = false;
+        UI.log(`📁 ${validFiles.length} archivos KML cargados`);
+    }
 }
 
+async function analyzeKMLIntersection() {
+    if (AppState.kmlFiles.length === 0) return;
+
+    UI.log('🔍 Iniciando análisis de cruces KML...');
+    UI.updateStatus('Analizando KML...', 'warning');
+    document.getElementById('btn-analyze-kml').disabled = true;
+
+    // 1. Verificar Soporte KML en Servidor
+    try {
+        const healthCheck = await fetch('/api/health/kml');
+        const health = await healthCheck.json();
+        if (!health.kml_support) {
+            UI.log('⚠️ ALERTA: El servidor reporta que no tiene drivers KML instalados (GDAL/LIBKML). El análisis podría fallar.', 'warning');
+        }
+    } catch (e) {
+        console.warn("No se pudo verificar salud KML", e);
+    }
+
+    const formData = new FormData();
+    AppState.kmlFiles.forEach(file => {
+        formData.append('files', file);
+    });
+
+    try {
+        const response = await fetch('/api/kml/intersection', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            displayKMLResults(data);
+            UI.log('✅ Cruce de KML completado', 'success');
+            UI.updateStatus('KML Analizado', 'success');
+        } else {
+            throw new Error(data.message || 'Error en el análisis');
+        }
+
+    } catch (error) {
+        UI.log(`❌ Error KML: ${error.message}`, 'error');
+        UI.updateStatus('Error', 'danger');
+    } finally {
+        document.getElementById('btn-analyze-kml').disabled = false;
+    }
+}
+
+function displayKMLResults(data) {
+    document.getElementById('kml-results').classList.remove('hidden');
+    const container = document.getElementById('kml-intersection-results');
+
+    let html = '';
+
+    // Mostrar errores parciales si los hay
+    if (data.errors && data.errors.length > 0) {
+        html += `<div class="alert alert-warning mb-3">
+            <strong>⚠️ Problemas con algunos archivos:</strong><br>
+            <ul>${data.errors.map(e => `<li>${e}</li>`).join('')}</ul>
+        </div>`;
+    }
+
+    if (data.intersections && data.intersections.length > 0) {
+        // Agrupar por par de archivos
+        html += '<div class="batch-results-list">';
+        data.intersections.forEach(item => {
+            html += `
+                <div class="analysis-item">
+                    <div>
+                        <strong>${item.archivo1}</strong> ⚡ <strong>${item.archivo2}</strong>
+                        <div class="text-muted"><small>Tipo: ${item.tipo_interseccion}</small></div>
+                    </div>
+                    <div class="text-right">
+                        <div class="analysis-value">${item.porcentaje_superposicion}%</div>
+                        <span class="badge badge-${item.porcentaje_superposicion > 50 ? 'danger' : 'warning'}">Solapamiento</span>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    } else {
+        html += '<div class="text-center p-4 text-muted"><h5><i class="fas fa-check-circle text-success"></i> No se encontraron intersecciones</h5><p>Las geometrías no se tocan.</p></div>';
+    }
+
+    container.innerHTML = html;
+}
+
+// Actualizar también la función de opacidad para debug
 function updateOpacity(val) {
-    document.getElementById('layer-overlay').style.opacity = val / 100;
-    document.getElementById('opacity-val').textContent = val + '%';
-}
-
-function loadViewerLayer(base, overlay, silhouette) {
-    document.getElementById('layer-base').src = base;
-    document.getElementById('layer-overlay').src = overlay;
-    document.getElementById('layer-silhouette').src = silhouette || '';
-    document.getElementById('layer-viewer').scrollIntoView({ behavior: 'smooth' });
+    console.log("Slider opacidad movido:", val);
+    const overlay = document.getElementById('layer-overlay');
+    if (overlay) {
+        overlay.style.opacity = val / 100;
+        document.getElementById('opacity-val').textContent = val + '%';
+    } else {
+        console.error("No se encuentra el elemento layer-overlay");
+    }
 }
 
 // Análisis Urbanístico (v3)
