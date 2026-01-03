@@ -73,9 +73,6 @@ async function loadReferenceData() {
             analysisData = data;
             displayAnalysisData(data);
             updateMapWithLayers(data);
-            
-            // Cargar ortofotos locales
-            await loadOrtophotos();
         } else {
             showError('No se encontraron datos para esta referencia');
         }
@@ -200,12 +197,22 @@ function updateMapWithLayers(data) {
     }
     
     // Añadir capas disponibles
-    data.analisis.capas_procesadas.forEach((capa, index) => {
-        if (capa.png_url) {
-            // Intentar añadir capa de imagen
-            addImageLayer(index, capa);
-        }
-    });
+    if (data.analisis && data.analisis.capas_procesadas) {
+        data.analisis.capas_procesadas.forEach((capa, index) => {
+            if (capa.png_url) {
+                // Intentar añadir capa de imagen
+                addImageLayer(index, capa);
+            }
+        });
+    }
+    
+    // Añadir ortofotos locales si existen
+    if (data.ortophotos && data.ortophotos.length > 0) {
+        addOrtophotosToMap(data.ortophotos);
+    }
+    
+    // Mostrar control de opacidad
+    showOpacityControl();
 }
 
 async function loadOrtophotos() {

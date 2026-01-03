@@ -90,99 +90,40 @@ async def read_index():
 
 @app.post("/api/catastro/query")
 async def query_catastro(data: dict = Body(...)):
-    """
-    PUNTO 1 y 2: Obtiene KML y datos básicos.
-    """
+    """Endpoint principal de consulta catastral con análisis completo"""
     ref = data.get("referencia")
     if not ref:
         raise HTTPException(status_code=400, detail="Falta referencia")
-    
+
     try:
-        catastro_data = urban_engine.obtener_datos_catastrales(ref)
-        if catastro_data.get("status") == "error":
-            return JSONResponse(status_code=500, content=catastro_data)
-
-        analisis_gis = vector_engine.ejecutar_analisis_completo(ref, catastro_data["kml"])
-        if isinstance(analisis_gis, dict) and analisis_gis.get("error"):
-            return JSONResponse(status_code=500, content={"status": "error", "message": analisis_gis.get("error")})
-
-        capas_procesadas = []
-        total_area_afectada = 0.0
-        capas_afectan = 0
-
-        for item in (analisis_gis or []):
-            afectado = bool(item.get("afectado"))
-            area = float(item.get("area_afectada") or 0)
-            if afectado:
-                capas_afectan += 1
-                total_area_afectada += area
-
-            estado = "Solapado" if afectado else "Descargada"
-            capas_procesadas.append({
-                "nombre": item.get("titulo") or item.get("capa") or "Capa",
-                "estado": estado,
-                "superficie": f"{area:.2f} m²",
-                "porcentaje": None,
-                "categoria": None,
-                "impacto": None,
-                "png_url": item.get("mapa_url"),
-                "kml_url": None,
-                "json_url": None,
-            })
-
-        coords = catastro_data.get("coordenadas")
-        if not coords:
-            coords = {"lat": 40.416775, "lon": -3.70379, "srs": "EPSG:4326"}
-
-        def _fs_path_to_outputs_url(p: str | None):
-            if not p:
-                return None
+        # 1. Análisis urbanístico completo
+        analisis_data = urban_engine.obtener_datos_catastrales(ref)
+        
+        # 2. Generar ortofotos locales
+        coords = analisis_data.get("coordenadas")
+        ortophotos = []
+        if coords and isinstance(coords, dict):
             try:
-                rel = Path(p).resolve().relative_to(OUTPUT_DIR.resolve())
-                return "/outputs/" + rel.as_posix()
-            except Exception:
-                return None
+                ortophotos = local_layers.generar_ortofotos_multi_escala(ref, coords)
+            except Exception as e:
+                logger.warning(f"No se pudieron generar ortofotos locales: {e}")
 
-        wms_layers = catastro_data.get("wms_layers") or {}
-        wms_layers_urls = {}
-        for k, v in wms_layers.items():
-            url = _fs_path_to_outputs_url(v)
-            if url:
-                wms_layers_urls[k] = url
-
-        # Incluir WMS como capas visuales (fotos) para que el visor pueda mostrarlas
-        for k, url in wms_layers_urls.items():
-            capas_procesadas.append({
-                "nombre": f"WMS: {k}",
-                "estado": "Generada",
-                "superficie": "N/A",
-                "porcentaje": None,
-                "categoria": "WMS",
-                "impacto": None,
-                "png_url": url,
-                "kml_url": None,
-                "json_url": None,
-            })
-
+        # 3. Retornar todo integrado
         return {
             "status": "success",
             "ref": ref,
-            "kml_url": f"/outputs/{ref}/{ref}.kml",
             "coordenadas": coords,
-            "wms_layers": wms_layers_urls,
-            "analisis": {
-                "resumen": {
-                    "total_capas": len(capas_procesadas),
-                    "capas_afectan": capas_afectan,
-                    "superficie_total_afectada": f"{total_area_afectada:.2f} m²",
-                    "archivos_generados": len([c for c in capas_procesadas if c.get("png_url")])
-                },
-                "capas_procesadas": capas_procesadas
-            }
+            "analisis": analisis_data,
+            "ortophotos": ortophotos,
+            "carpeta": f"/outputs/{ref}"
         }
+        
     except Exception as e:
-        logger.exception(f"Error en query_catastro para {ref}")
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+        logger.exception(f"Error en consulta catastral para {ref}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
 
 @app.get("/api/references/list")
 async def list_references():
