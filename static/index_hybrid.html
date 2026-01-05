@@ -17,7 +17,6 @@
             --sidebar-w: 280px; --header-h: 75px;
         }
 
-        /* --- SISTEMA BASE --- */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-ultra); }
@@ -25,7 +24,6 @@
 
         body { font-family: 'Inter', sans-serif; background: var(--bg-ultra); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; }
 
-        /* --- NAVEGACIÓN LATERAL --- */
         .sidebar { width: var(--sidebar-w); background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; }
         .sidebar-header { padding: 2.5rem 1.5rem; border-bottom: 1px solid var(--border); }
         .nav-group { padding: 1.5rem 1rem; flex: 1; overflow-y: auto; }
@@ -40,7 +38,6 @@
         .nav-item:hover { background: rgba(255,255,255,0.03); color: var(--text-main); }
         .nav-item.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid var(--border); }
 
-        /* --- ESTRUCTURA PRINCIPAL --- */
         .app-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
         .top-nav { 
             height: var(--header-h); background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(12px);
@@ -50,7 +47,6 @@
         .content-scroll { padding: 2.5rem; overflow-y: auto; flex: 1; background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.03), transparent); }
         .content-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2rem; max-width: 1600px; margin: 0 auto; }
 
-        /* --- COMPONENTES DE INTERFAZ --- */
         .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; position: relative; transition: transform 0.3s; }
         .card:hover { border-color: var(--accent); }
         .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
@@ -60,7 +56,6 @@
         .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; }
         .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--accent); margin-top: 5px; }
 
-        /* --- FORMULARIOS PRO --- */
         .field { margin-bottom: 1.5rem; }
         .label-text { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
         .input-pro { 
@@ -76,8 +71,8 @@
             cursor: pointer; display: inline-flex; align-items: center; gap: 12px; transition: 0.3s;
         }
         .btn-prime:hover { transform: translateY(-2px); box-shadow: 0 8px 25px var(--accent-glow); }
+        .btn-prime:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* --- TABLAS Y TERMINAL --- */
         .table-wrap { width: 100%; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 15px; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid var(--border); }
@@ -94,6 +89,15 @@
 
         .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; border: 1px solid transparent; }
         .status-active { background: rgba(16, 185, 129, 0.1); color: var(--success); border-color: rgba(16, 185, 129, 0.2); }
+        .status-error { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.2); }
+
+        .ortho-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+        .ortho-card { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: 0.3s; cursor: pointer; }
+        .ortho-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+        .ortho-card img { width: 100%; height: 180px; object-fit: cover; }
+        .ortho-info { padding: 1rem; background: var(--bg-ultra); }
+
+        .helper-text { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
     </style>
 </head>
 <body>
@@ -110,17 +114,16 @@
             <div class="nav-label">Operativa</div>
             <button class="nav-item active" onclick="app.nav('dashboard')"><i class="fas fa-columns"></i> Dashboard Sistema</button>
             <button class="nav-item" onclick="app.nav('urbanismo')"><i class="fas fa-map-location-dot"></i> Análisis Urbanístico</button>
-            <button class="nav-item" onclick="app.nav('tasacion')"><i class="fas fa-calculator"></i> Motor Tasación</button>
+            <button class="nav-item" onclick="app.nav('orthoviewer')"><i class="fas fa-images"></i> Visor Ortofotos</button>
             
             <div class="nav-label">Recursos</div>
-            <button class="nav-item" onclick="app.nav('gis')"><i class="fas fa-globe"></i> Visor GIS / KML</button>
             <button class="nav-item" onclick="app.nav('logs')"><i class="fas fa-terminal"></i> Terminal Backend</button>
         </div>
 
         <div style="padding:1.5rem; border-top:1px solid var(--border);">
             <div style="display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); padding:10px; border-radius:12px;">
                 <div style="width:36px; height:36px; background:var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800;">DN</div>
-                <div style="flex:1;"><p style="font-size:0.8rem; font-weight:700;">dnogares</p><p style="font-size:0.65rem; color:var(--success);">Server Link: Online</p></div>
+                <div style="flex:1;"><p style="font-size:0.8rem; font-weight:700;">dnogares</p><p id="server-status" style="font-size:0.65rem; color:var(--text-muted);">Checking...</p></div>
             </div>
         </div>
     </aside>
@@ -132,12 +135,15 @@
                 <div id="loader-icon" style="display:none;"><i class="fas fa-sync fa-spin" style="color:var(--accent);"></i></div>
             </div>
             <div style="display:flex; align-items:center; gap:20px;">
-                <button class="btn-prime" style="padding:8px 16px; font-size:0.8rem;"><i class="fas fa-file-export"></i> Exportar Datos</button>
+                <div style="font-family:'JetBrains Mono'; font-size:0.75rem; color:var(--text-muted);">
+                    Backend: <span id="backend-url">http://127.0.0.1:8081</span>
+                </div>
             </div>
         </header>
 
         <div class="content-scroll">
             
+            <!-- DASHBOARD -->
             <section id="view-dashboard" class="tab-content active">
                 <div class="content-grid">
                     <div class="card" style="grid-column: span 12;">
@@ -145,57 +151,79 @@
                             <h3 class="card-title"><i class="fas fa-microchip"></i> Telemetría del Sistema</h3>
                         </div>
                         <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:1.5rem;">
-                            <div class="stat-box"><div class="stat-label">Carga main.py</div><div class="stat-value">0.12ms</div></div>
-                            <div class="stat-box"><div class="stat-label">Buffer Memoria</div><div class="stat-value">12.4 MB</div></div>
-                            <div class="stat-box"><div class="stat-label">Consultas RC</div><div class="stat-value">1.4k</div></div>
-                            <div class="stat-box"><div class="stat-label">Hilos Activos</div><div class="stat-value">8</div></div>
+                            <div class="stat-box"><div class="stat-label">Consultas Hoy</div><div class="stat-value" id="stat-queries">0</div></div>
+                            <div class="stat-box"><div class="stat-label">Referencias</div><div class="stat-value" id="stat-refs">0</div></div>
+                            <div class="stat-box"><div class="stat-label">Ortofotos</div><div class="stat-value" id="stat-orthos">0</div></div>
+                            <div class="stat-box"><div class="stat-label">Estado API</div><div class="stat-value" id="stat-api">OK</div></div>
                         </div>
                     </div>
 
-                    <div class="card" style="grid-column: span 8;">
+                    <div class="card" style="grid-column: span 12;">
                         <h3 class="card-title" style="margin-bottom:1.5rem;"><i class="fas fa-history"></i> Historial de Peticiones</h3>
                         <div class="table-wrap">
                             <table id="history-table">
                                 <thead>
                                     <tr><th>Timestamp</th><th>Referencia</th><th>Operación</th><th>Estado</th></tr>
                                 </thead>
-                                <tbody>
-                                    </tbody>
+                                <tbody></tbody>
                             </table>
                         </div>
                     </div>
-
-                    <div class="card" style="grid-column: span 4;">
-                        <h3 class="card-title" style="margin-bottom:1.5rem;"><i class="fas fa-signal"></i> Status Backend</h3>
-                        <div class="field"><label class="label-text">Endpoint API</label><input type="text" class="input-pro" value="http://127.0.0.1:5000" readonly></div>
-                        <div class="field"><label class="label-text">Auth Token</label><input type="password" class="input-pro" value="******************" readonly></div>
-                    </div>
                 </div>
             </section>
 
+            <!-- ANÁLISIS URBANÍSTICO -->
             <section id="view-urbanismo" class="tab-content">
-                <div class="card" style="max-width:900px; margin: 0 auto;">
-                    <h3 class="card-title" style="margin-bottom:2rem;"><i class="fas fa-building-circle-check"></i> Consultor de Planeamiento</h3>
+                <div class="card" style="max-width:1000px; margin: 0 auto;">
+                    <h3 class="card-title" style="margin-bottom:2rem;"><i class="fas fa-building-circle-check"></i> Análisis Catastral Completo</h3>
+                    
                     <div class="field">
-                        <label class="label-text">Referencia Catastral (Formato Sede Electrónica)</label>
+                        <label class="label-text">Referencia Catastral</label>
                         <input type="text" id="rc-input-main" class="input-pro" placeholder="Ej: 9876543DG8097S0001AY" maxlength="20">
+                        <div class="helper-text">
+                            <i class="fas fa-info-circle" style="color: var(--accent);"></i>
+                            <span>Formato: 7 números + 7 letras + 4 números + 2 letras (20 caracteres totales)</span>
+                        </div>
                     </div>
-                    <button class="btn-prime" onclick="logic.processUrban()">
-                        <i class="fas fa-rocket"></i> Ejecutar Cruce con main.py
+
+                    <button class="btn-prime" id="btn-analyze" onclick="logic.processUrban()">
+                        <i class="fas fa-rocket"></i> Ejecutar Análisis Completo
                     </button>
                     
-                    <div id="urban-result-box" style="margin-top:2.5rem; display:none;">
-                        </div>
+                    <div id="urban-result-box" style="margin-top:2.5rem; display:none;"></div>
                 </div>
             </section>
 
+            <!-- VISOR ORTOFOTOS -->
+            <section id="view-orthoviewer" class="tab-content">
+                <div class="card">
+                    <h3 class="card-title" style="margin-bottom:2rem;"><i class="fas fa-satellite"></i> Visor de Ortofotos Multi-escala</h3>
+                    
+                    <div class="field">
+                        <label class="label-text">Referencia para generar ortofotos</label>
+                        <div style="display: flex; gap: 1rem;">
+                            <input type="text" id="rc-input-ortho" class="input-pro" placeholder="Ej: 9876543DG8097S0001AY" maxlength="20" style="flex: 1;">
+                            <button class="btn-prime" onclick="logic.generateOrthos()">
+                                <i class="fas fa-images"></i> Generar Set
+                            </button>
+                        </div>
+                        <div class="helper-text">
+                            <i class="fas fa-info-circle" style="color: var(--accent);"></i>
+                            <span>Se generarán ortofotos a múltiples escalas (4 niveles de zoom)</span>
+                        </div>
+                    </div>
+
+                    <div id="ortho-grid" class="ortho-grid"></div>
+                </div>
+            </section>
+
+            <!-- LOGS -->
             <section id="view-logs" class="tab-content">
                 <div class="card">
-                    <h3 class="card-title" style="margin-bottom:1rem;"><i class="fas fa-terminal"></i> Output de Consola en Tiempo Real</h3>
+                    <h3 class="card-title" style="margin-bottom:1rem;"><i class="fas fa-terminal"></i> Output de Consola</h3>
                     <div class="terminal-box" id="sys-terminal">
-                        [INIT] GeoTasker UI v5.0 cargada para dnogares...<br>
-                        [BACKEND] Handshake iniciado con main.py...<br>
-                        [READY] Esperando instrucción del usuario...
+[INIT] GeoTasker UI v5.0 cargada para dnogares...<br>
+[BACKEND] Verificando conexión con main.py...<br>
                     </div>
                 </div>
             </section>
@@ -204,11 +232,11 @@
     </div>
 
     <script>
-        /**
-         * GEOTASKER ENGINE
-         * Desarrollado para dnogares - v5.0 (2026)
-         * Gestión de peticiones asíncronas, validación y renderizado
-         */
+        // CONFIGURACIÓN
+        const CONFIG = {
+            BACKEND_URL: 'http://127.0.0.1:8081',
+            API_PREFIX: '/api'
+        };
 
         const app = {
             nav(viewId) {
@@ -217,49 +245,69 @@
                 
                 document.getElementById('view-' + viewId).classList.add('active');
                 event.currentTarget.classList.add('active');
-                this.log(`Cambiando vista a: ${viewId}`);
+                this.log(`Vista cambiada: ${viewId}`);
             },
 
             log(msg, type = 'INFO') {
                 const term = document.getElementById('sys-terminal');
                 const time = new Date().toLocaleTimeString();
-                term.innerHTML += `<br>[${time}] [${type}] ${msg}`;
+                const color = type === 'ERROR' ? '#ef4444' : type === 'WARN' ? '#f59e0b' : '#10b981';
+                term.innerHTML += `<br><span style="color:${color}">[${time}] [${type}] ${msg}</span>`;
                 term.scrollTop = term.scrollHeight;
+            },
+
+            async checkBackend() {
+                try {
+                    const response = await fetch(`${CONFIG.BACKEND_URL}/api/references/list`);
+                    const data = await response.json();
+                    
+                    document.getElementById('server-status').innerHTML = '<span style="color:var(--success)">● Online</span>';
+                    document.getElementById('stat-api').textContent = 'ONLINE';
+                    document.getElementById('stat-api').style.color = 'var(--success)';
+                    document.getElementById('stat-refs').textContent = data.references?.length || 0;
+                    
+                    this.log('Backend conectado correctamente en puerto 8081');
+                    return true;
+                } catch (error) {
+                    document.getElementById('server-status').innerHTML = '<span style="color:var(--danger)">● Offline</span>';
+                    document.getElementById('stat-api').textContent = 'OFFLINE';
+                    document.getElementById('stat-api').style.color = 'var(--danger)';
+                    
+                    this.log('Backend no disponible. Verifique que main.py esté ejecutándose en puerto 8081', 'ERROR');
+                    return false;
+                }
             }
         };
 
         const logic = {
             state: {
                 isProcessing: false,
-                lastRC: null,
-                history: [
-                    { time: '10:45:12', rc: '2847501VK4724S', op: 'Cruce GIS', st: 'OK' },
-                    { time: '10:42:05', rc: '3190204DG8039S', op: 'Tasación', st: 'OK' }
-                ]
+                history: []
             },
 
-            init() {
-                this.renderHistory();
-                app.log("Motor lógico sincronizado.");
-            },
-
-            // Validación exhaustiva de la Referencia Catastral
             validateRC(rc) {
                 const cleanRC = rc.trim().toUpperCase();
-                if (cleanRC.length !== 20) return { valid: false, msg: "La RC debe tener exactamente 20 caracteres." };
+                if (cleanRC.length !== 20) {
+                    return { 
+                        valid: false, 
+                        msg: "La Referencia Catastral debe tener exactamente 20 caracteres.\n\nFormato: 7 números + 7 letras + 4 números + 2 letras\nEjemplo: 9876543DG8097S0001AY" 
+                    };
+                }
                 
-                // Patrón oficial de la Sede Electrónica: 7 números + 7 letras + 4 números + 2 letras
                 const regex = /^[0-9]{7}[A-Z]{7}[0-9]{4}[A-Z]{2}$/;
-                if (!regex.test(cleanRC)) return { valid: false, msg: "Estructura de caracteres no válida." };
+                if (!regex.test(cleanRC)) {
+                    return { 
+                        valid: false, 
+                        msg: "Formato incorrecto.\n\nDebe seguir el patrón:\n• 7 dígitos numéricos\n• 7 letras mayúsculas\n• 4 dígitos numéricos\n• 2 letras mayúsculas\n\nEjemplo: 9876543DG8097S0001AY" 
+                    };
+                }
                 
                 return { valid: true, data: cleanRC };
             },
 
-            // Comunicación con el Backend main.py
             async processUrban() {
                 const input = document.getElementById('rc-input-main').value;
                 const check = this.validateRC(input);
-                const loader = document.getElementById('loader-icon');
 
                 if (!check.valid) {
                     alert(check.msg);
@@ -267,88 +315,257 @@
                     return;
                 }
 
-                // UI State
+                const loader = document.getElementById('loader-icon');
+                const btn = document.getElementById('btn-analyze');
+                const resultBox = document.getElementById('urban-result-box');
+
                 loader.style.display = 'block';
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
                 app.log(`Iniciando análisis para: ${check.data}`);
                 
-                const resultBox = document.getElementById('urban-result-box');
                 resultBox.style.display = 'block';
                 resultBox.innerHTML = `
                     <div style="text-align:center; padding:3rem; border:1px dashed var(--border); border-radius:12px;">
                         <i class="fas fa-dna fa-spin fa-2x" style="color:var(--accent); margin-bottom:1rem;"></i>
-                        <p style="font-family:'JetBrains Mono'; font-size:0.9rem;">CONECTANDO CON EL NÚCLEO PYTHON (main.py)...</p>
+                        <p style="font-family:'JetBrains Mono'; font-size:0.9rem;">CONECTANDO CON BACKEND (main.py)...</p>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">Descargando capas WMS del Catastro...</p>
                     </div>
                 `;
 
                 try {
-                    // LLAMADA REAL AL BACKEND main.py
-                    const response = await fetch('http://127.0.0.1:5000/api/analyze', {
+                    const response = await fetch(`${CONFIG.BACKEND_URL}/api/catastro/query`, {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            rc: check.data,
-                            requester: 'dnogares_frontend_v5'
-                        })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ referencia: check.data })
                     });
 
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
                     const data = await response.json();
-                    this.renderUrbanResult(data);
+                    
+                    if (data.status === 'success') {
+                        this.renderUrbanResult(data);
+                        this.addToHistory(check.data, 'Análisis Catastral', 'OK');
+                        app.log('Análisis completado con éxito', 'INFO');
+                    } else {
+                        throw new Error(data.message || 'Error desconocido');
+                    }
                     
                 } catch (error) {
-                    app.log("Fallo en fetch (Server offline?). Usando motor local de respaldo.", "WARN");
-                    // Mock de éxito para demostración si el server no está activo
-                    setTimeout(() => {
-                        this.renderUrbanResult({
-                            clasificacion: "Suelo Urbano Consolidado",
-                            ordenanza: "U-2 (Ensanche Residencial)",
-                            edificabilidad: "1,45 m²t/m²s",
-                            afecciones: ["Costas (Servidumbre)", "PATRICOVA (Bajo)"]
-                        });
-                    }, 1500);
+                    app.log(`Error: ${error.message}`, 'ERROR');
+                    resultBox.innerHTML = `
+                        <div style="padding:2rem; border:2px solid var(--danger); border-radius:12px; background:rgba(239,68,68,0.05);">
+                            <h4 style="color:var(--danger); margin-bottom:1rem;"><i class="fas fa-exclamation-triangle"></i> Error de Conexión</h4>
+                            <p style="font-size:0.9rem; margin-bottom:1rem;">${error.message}</p>
+                            <p style="font-size:0.8rem; color:var(--text-muted);">
+                                Asegúrese de que main.py esté ejecutándose en <code style="color:var(--accent);">http://127.0.0.1:8081</code>
+                            </p>
+                            <button class="btn-prime" onclick="app.checkBackend()" style="margin-top:1rem;">
+                                <i class="fas fa-redo"></i> Verificar Conexión
+                            </button>
+                        </div>
+                    `;
+                    this.addToHistory(check.data, 'Análisis Catastral', 'ERROR');
                 } finally {
                     loader.style.display = 'none';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-rocket"></i> Ejecutar Análisis Completo';
                 }
             },
 
             renderUrbanResult(data) {
                 const box = document.getElementById('urban-result-box');
+                const analisis = data.analisis || {};
+                const resumen = analisis.resumen || {};
+                const capas = analisis.capas_procesadas || [];
+                const orthos = data.ortophotos || [];
+
                 box.innerHTML = `
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-                        <div class="card" style="border-color:var(--accent);">
-                            <h4 style="color:var(--accent); margin-bottom:1rem;"><i class="fas fa-check-double"></i> Datos Normativos</h4>
-                            <p style="font-size:0.9rem; margin-bottom:8px;"><strong>Clasificación:</strong> ${data.clasificacion}</p>
-                            <p style="font-size:0.9rem; margin-bottom:8px;"><strong>Ordenanza:</strong> ${data.ordenanza}</p>
-                            <p style="font-size:0.9rem;"><strong>Edificabilidad:</strong> ${data.edificabilidad}</p>
+                    <div style="display:grid; gap:1.5rem;">
+                        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1rem;">
+                            <div class="stat-box">
+                                <div class="stat-label">Total Capas</div>
+                                <div class="stat-value">${resumen.total_capas || 0}</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Capas Afectan</div>
+                                <div class="stat-value" style="color:${resumen.capas_afectan > 0 ? 'var(--warning)' : 'var(--success)'}">${resumen.capas_afectan || 0}</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Superficie Afectada</div>
+                                <div class="stat-value" style="font-size:1.2rem;">${resumen.superficie_total_afectada || '0 m²'}</div>
+                            </div>
                         </div>
-                        <div class="card" style="border-color:var(--warning);">
-                            <h4 style="color:var(--warning); margin-bottom:1rem;"><i class="fas fa-triangle-exclamation"></i> Afecciones Críticas</h4>
-                            <ul style="list-style:none; font-size:0.85rem;">
-                                ${data.afecciones.map(a => `<li style="margin-bottom:6px;"><i class="fas fa-caret-right"></i> ${a}</li>`).join('')}
-                            </ul>
+
+                        ${capas.length > 0 ? `
+                        <div class="card" style="background:var(--bg-ultra);">
+                            <h4 style="color:var(--accent); margin-bottom:1rem;"><i class="fas fa-layer-group"></i> Capas Descargadas</h4>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr><th>Capa</th><th>Estado</th><th>Vista Previa</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        ${capas.map(c => `
+                                            <tr>
+                                                <td><strong>${c.nombre}</strong></td>
+                                                <td><span class="status-badge status-active">${c.estado}</span></td>
+                                                <td>
+                                                    ${c.png_url ? `<a href="${c.png_url}" target="_blank" style="color:var(--accent); text-decoration:none;">
+                                                        <i class="fas fa-external-link-alt"></i> Ver Imagen
+                                                    </a>` : 'N/A'}
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${orthos.length > 0 ? `
+                        <div class="card" style="background:var(--bg-ultra);">
+                            <h4 style="color:var(--accent); margin-bottom:1rem;"><i class="fas fa-satellite-dish"></i> Ortofotos Locales (${orthos.length})</h4>
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+                                ${orthos.map(o => `
+                                    <div class="ortho-card" onclick="window.open('${o.url}', '_blank')">
+                                        <img src="${o.url}" alt="${o.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%230f172a%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%2364748b%22%3ENo disponible%3C/text%3E%3C/svg%3E'">
+                                        <div class="ortho-info">
+                                            <p style="font-size:0.8rem; font-weight:700;">${o.title}</p>
+                                            <p style="font-size:0.7rem; color:var(--text-muted);">${o.description}</p>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${data.coordenadas ? `
+                        <div class="card" style="background:var(--bg-ultra);">
+                            <h4 style="color:var(--text-muted); margin-bottom:0.5rem;"><i class="fas fa-map-pin"></i> Coordenadas</h4>
+                            <p style="font-family:'JetBrains Mono'; font-size:0.85rem;">
+                                Lat: ${data.coordenadas.lat || 'N/A'} | Lon: ${data.coordenadas.lon || 'N/A'}
+                            </p>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            },
+
+            async generateOrthos() {
+                const input = document.getElementById('rc-input-ortho').value;
+                const check = this.validateRC(input);
+
+                if (!check.valid) {
+                    alert(check.msg);
+                    return;
+                }
+
+                const grid = document.getElementById('ortho-grid');
+                app.log(`Generando ortofotos para: ${check.data}`);
+                
+                grid.innerHTML = '<p style="text-align:center; padding:2rem;"><i class="fas fa-spinner fa-spin fa-2x" style="color:var(--accent);"></i><br><span style="margin-top:1rem; display:block;">Generando ortofotos multi-escala...</span></p>';
+
+                try {
+                    const response = await fetch(`${CONFIG.BACKEND_URL}/api/ortophotos/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ referencia: check.data })
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success' && data.ortophotos) {
+                        this.renderOrthos(data.ortophotos);
+                        app.log(`${data.ortophotos.length} ortofotos generadas`);
+                    } else {
+                        throw new Error(data.message || 'No se generaron ortofotos');
+                    }
+                    
+                } catch (error) {
+                    app.log(`Error generando ortofotos: ${error.message}`, 'ERROR');
+                    grid.innerHTML = `
+                        <div style="padding:2rem; border:2px dashed var(--danger); border-radius:12px; text-align:center;">
+                            <i class="fas fa-exclamation-triangle" style="font-size:2rem; color:var(--danger); margin-bottom:1rem;"></i>
+                            <p style="color:var(--danger); font-weight:700;">Error al generar ortofotos</p>
+                            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;">${error.message}</p>
+                        </div>
+                    `;
+                }
+            },
+
+            renderOrthos(orthos) {
+                const grid = document.getElementById('ortho-grid');
+                
+                if (!orthos || orthos.length === 0) {
+                    grid.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">No hay ortofotos disponibles</p>';
+                    return;
+                }
+
+                grid.innerHTML = orthos.map(o => `
+                    <div class="ortho-card" onclick="window.open('${o.url}', '_blank')">
+                        <img src="${o.url}" alt="${o.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22250%22 height=%22180%22%3E%3Crect fill=%22%230f172a%22 width=%22250%22 height=%22180%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%2364748b%22 font-size=%2214%22%3EImagen no disponible%3C/text%3E%3C/svg%3E'">
+                        <div class="ortho-info">
+                            <p style="font-size:0.85rem; font-weight:700; color:var(--text-main);">${o.title || 'Sin título'}</p>
+                            <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">${o.description || 'Ortofoto generada'}</p>
+                            ${o.zoom ? `<p style="font-size:0.7rem; color:var(--accent); margin-top:0.5rem;"><i class="fas fa-search-plus"></i> Nivel ${o.zoom}</p>` : ''}
                         </div>
                     </div>
-                    <button class="btn-prime" style="margin-top:20px; width:100%; justify-content:center;">
-                        <i class="fas fa-file-pdf"></i> GENERAR INFORME TÉCNICO COMPLETO
-                    </button>
-                `;
-                app.log("Resultados renderizados con éxito.");
+                `).join('');
+            },
+
+            addToHistory(rc, operation, status) {
+                const time = new Date().toLocaleTimeString();
+                this.state.history.unshift({ time, rc, op: operation, st: status });
+                
+                if (this.state.history.length > 10) {
+                    this.state.history = this.state.history.slice(0, 10);
+                }
+                
+                this.renderHistory();
+                
+                const queries = parseInt(document.getElementById('stat-queries').textContent) || 0;
+                document.getElementById('stat-queries').textContent = queries + 1;
             },
 
             renderHistory() {
                 const tbody = document.querySelector('#history-table tbody');
+                
+                if (this.state.history.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:2rem;">No hay historial disponible</td></tr>';
+                    return;
+                }
+
                 tbody.innerHTML = this.state.history.map(h => `
                     <tr>
                         <td style="color:var(--text-muted); font-family:'JetBrains Mono'; font-size:0.75rem;">${h.time}</td>
-                        <td style="font-weight:700;">${h.rc}</td>
+                        <td style="font-weight:700; font-family:'JetBrains Mono';">${h.rc}</td>
                         <td>${h.op}</td>
-                        <td><span class="status-badge status-active">${h.st}</span></td>
+                        <td><span class="status-badge ${h.st === 'OK' ? 'status-active' : 'status-error'}">${h.st}</span></td>
                     </tr>
                 `).join('');
             }
         };
 
-        // Iniciar motor al cargar
-        window.onload = () => logic.init();
+        // Inicialización al cargar la página
+        window.onload = async () => {
+            app.log('Sistema inicializado');
+            
+            // Verificar conexión con backend
+            const connected = await app.checkBackend();
+            
+            if (connected) {
+                app.log('Todos los sistemas operativos', 'INFO');
+            } else {
+                app.log('Trabajando en modo sin conexión', 'WARN');
+            }
+            
+            // Renderizar historial vacío inicial
+            logic.renderHistory();
+        };
     </script>
 </body>
 </html>
