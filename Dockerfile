@@ -21,6 +21,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar todo el proyecto
+# Cache bust: 2025-01-14
 COPY . .
 
 # Crear carpetas necesarias y dar permisos
