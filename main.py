@@ -29,6 +29,7 @@ import zipfile
 import time
 from io import BytesIO
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -45,6 +46,15 @@ from catastro_complete_downloader import CatastroCompleteDownloader
 from local_layers_manager import LocalLayersManager
 
 app = FastAPI(title="Catastro-tool")
+
+# Configurar CORS
+app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Permite todos los orígenes
+        allow_credentials=True,
+        allow_methods=["*"],  # Permite todos los métodos HTTP
+        allow_headers=["*"],  # Permite todos los headers
+    )
 
 # 1. CONFIGURACIÓN DE RUTAS (Adaptadas para Docker/Easypanel)
 BASE_DIR = Path(__file__).resolve().parent
