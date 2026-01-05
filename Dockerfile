@@ -21,6 +21,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar todo el proyecto
+RUN echo "Build: 2025-01-14-v2" > /tmp/build.txt
 # Cache bust: 2025-01-14
 COPY . .
 
