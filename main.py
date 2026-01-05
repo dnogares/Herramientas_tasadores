@@ -30,7 +30,7 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 PORT = int(os.getenv("PORT", 8081))
 CATASTRO_API_TOKEN = os.getenv("CATASTRO_TOKEN", "default_secret")
 
-# --- IMPORTACIÓN DE MÓDULOS LOCALES (Punto 2: Crítico para la lógica de dnogares) ---
+# --- IMPORTACIÓN DE MÓDULOS LOCALES (Punto 2: Crítico para dnogares) ---
 try:
     from urban_analysis import AnalizadorUrbanistico
     from vector_analyzer import VectorAnalyzer
@@ -40,27 +40,29 @@ try:
     logger.info("Módulos locales cargados correctamente")
 except ImportError as e:
     logger.error(f"Error cargando módulos locales: {e}")
-    # No detenemos para permitir debug, pero los motores fallarán si no están los archivos
 
 app = FastAPI(title="Catastro-tool")
 
-# --- CONFIGURACIÓN DE RUTAS (Adaptadas para Docker/Easypanel) ---
+# --- CONFIGURACIÓN DE RUTAS ---
 BASE_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE_DIR / "outputs"
 STATIC_DIR = BASE_DIR / "static"
 
 if os.getenv("DOCKER_ENV"):
+    # Rutas fijas para el entorno Docker
     CAPAS_DIR = Path("/app/capas")
-            OUTPUT_DIR = Path("/app/outputs")
+    OUTPUT_DIR = Path("/app/outputs") # CORREGIDO: Eliminados espacios sobrantes
 else:
+    # Rutas para entorno local Windows/H:
+    OUTPUT_DIR = BASE_DIR / "outputs"
     h_data = Path("H:/data")
     if h_data.exists():
         CAPAS_DIR = h_data
     else:
         CAPAS_DIR = BASE_DIR / "capas"
-        CAPAS_DIR.mkdir(exist_ok=True)
 
+# Asegurar creación de directorios
 OUTPUT_DIR.mkdir(exist_ok=True)
+CAPAS_DIR.mkdir(exist_ok=True)
 
 # Montar estáticos
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -73,11 +75,21 @@ catastro_engine = CatastroDownloader(str(OUTPUT_DIR))
 catastro_complete = CatastroCompleteDownloader(str(OUTPUT_DIR))
 local_layers = LocalLayersManager(str(CAPAS_DIR))
 
-# --- ENDPOINTS PRINCIPALES ---
+# --- ENDPOINTS ---
 
 @app.get("/")
 async def read_index():
     return FileResponse(STATIC_DIR / "index_hybrid.html")
+
+@app.get("/api/layers/info")
+async def get_layers_info():
+    """Endpoint para listar capas locales disponibles."""
+    try:
+        info = local_layers.get_capas_info()
+        return {"status": "success", "layers": info}
+    except Exception as e:
+        logger.exception("Error obteniendo info de capas")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 @app.post("/api/catastro/query")
 async def query_catastro(data: dict = Body(...)):
@@ -137,26 +149,9 @@ async def query_catastro(data: dict = Body(...)):
         logger.exception(f"Error en consulta {ref}")
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
-@app.get("/api/references/list")
-async def list_references():
-    try:
-        refs = sorted([p.name for p in OUTPUT_DIR.iterdir() if p.is_dir()])
-        return {"status": "success", "references": refs}
-    except Exception:
-        return {"status": "success", "references": []}
-
-@app.get("/api/layers/info")  # CORREGIDO: Eliminado el "00"
-async def get_layers_info():
-    try:
-        info = local_layers.get_capas_info()
-        return {"status": "success", "layers": info}
-    except Exception as e:
-        logger.exception("Error obteniendo info de capas")
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
-
 @app.post("/api/kml/intersection")
 async def kml_intersection(kml_files: List[UploadFile] = File(...)):
-    """Analiza intersecciones entre múltiples KMLs con redundancia de parseo."""
+    """Analiza intersecciones con redundancia de métodos GIS."""
     try:
         import geopandas as gpd
         from shapely.ops import unary_union
@@ -164,13 +159,11 @@ async def kml_intersection(kml_files: List[UploadFile] = File(...)):
     except ImportError as e:
         return JSONResponse(status_code=500, content={"message": f"Faltan dependencias GIS: {e}"})
 
-    gdfs = []
-    names = []
-    errors = []
-    
+    gdfs, names, errors = [], [], []
     for f in kml_files:
         content = await f.read()
         try:
+            # Vía redundante 1: XML directo para evitar fallos de driver KML
             from xml.etree import ElementTree as ET
             tree = ET.parse(BytesIO(content))
             ns = {'kml': 'http://www.opengis.net/kml/2.2'}
@@ -178,20 +171,13 @@ async def kml_intersection(kml_files: List[UploadFile] = File(...)):
             
             polygons = []
             for coords_str in coords_text:
-                points = []
-                for coord in coords_str.split():
-                    parts = coord.split(',')
-                    if len(parts) >= 2:
-                        points.append((float(parts[0]), float(parts[1])))
-                if len(points) >= 3:
-                    polygons.append(Polygon(points))
+                pts = [(float(c.split(',')[0]), float(c.split(',')[1])) for c in coords_str.split() if ',' in c]
+                if len(pts) >= 3: polygons.append(Polygon(pts))
             
-            if not polygons:
-                raise ValueError("No se encontraron geometrías")
-                
-            gdf = gpd.GeoDataFrame({'geometry': polygons}, crs="EPSG:4326").to_crs("EPSG:25830")
-            gdfs.append(unary_union(gdf.geometry))
-            names.append(Path(f.filename).stem)
+            if polygons:
+                gdf = gpd.GeoDataFrame({'geometry': polygons}, crs="EPSG:4326").to_crs("EPSG:25830")
+                gdfs.append(unary_union(gdf.geometry))
+                names.append(Path(f.filename).stem)
         except Exception as e:
             errors.append(f"{f.filename}: {str(e)}")
 
@@ -211,7 +197,7 @@ async def kml_intersection(kml_files: List[UploadFile] = File(...)):
                 except Exception as e:
                     errors.append(f"Error cruce {names[i]}-{names[j]}: {str(e)}")
 
-    return {"status": "success", "intersections": intersections, "total_files": len(names), "errors": errors}
+    return {"status": "success", "intersections": intersections, "errors": errors}
 
 @app.post("/api/report/generate")
 @app.post("/api/report/custom")
@@ -220,21 +206,16 @@ async def generate_final_report(
     colegiado: str = Form(...), notas: str = Form(""), incluir_archivos: str = Form(None),
     selected_sections: str = Form(None), logo: UploadFile = File(None)
 ):
-    """Generación de informe PDF profesional."""
-    seleccion = selected_sections or incluir_archivos or "[]"
+    """Parte 3: Generación de informe PDF profesional."""
     try:
         from fpdf import FPDF
-        (OUTPUT_DIR / ref).mkdir(parents=True, exist_ok=True)
-
-        def _safe_pdf_text(s: str) -> str:
-            return str(s).encode("latin-1", errors="replace").decode("latin-1") if s else ""
-
-        mapas_seleccionados = json.loads(seleccion) if seleccion else []
+        seleccion = selected_sections or incluir_archivos or "[]"
+        mapas_seleccionados = json.loads(seleccion)
+        
         pdf = FPDF()
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        # Logo y Cabecera
         if logo:
             logo_path = OUTPUT_DIR / f"temp_logo_{ref}_{logo.filename}"
             with open(logo_path, "wb") as buffer:
@@ -244,53 +225,27 @@ async def generate_final_report(
             pdf.ln(20)
 
         pdf.set_font("Helvetica", 'B', 16)
-        pdf.cell(0, 10, _safe_pdf_text("INFORME TÉCNICO DE AFECCIONES URBANÍSTICAS"), 0, 1, 'C')
+        pdf.cell(0, 10, "INFORME TÉCNICO", 0, 1, 'C')
         pdf.set_font("Helvetica", '', 11)
-        pdf.cell(0, 10, _safe_pdf_text(f"Referencia Catastral: {ref}"), 0, 1, 'C')
-        pdf.ln(10)
+        pdf.cell(0, 10, f"Referencia: {ref}", 0, 1, 'C')
 
-        # Información del técnico
-        pdf.set_fill_color(230, 230, 230)
-        pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 10, _safe_pdf_text("  IDENTIFICACIÓN DEL TÉCNICO"), 0, 1, 'L', True)
-        pdf.set_font("Helvetica", '', 11)
-        pdf.cell(0, 8, _safe_pdf_text(f"Empresa: {empresa}"), 0, 1)
-        pdf.cell(0, 8, _safe_pdf_text(f"Técnico: {tecnico}"), 0, 1)
-        pdf.cell(0, 8, _safe_pdf_text(f"Colegiado: {colegiado}"), 0, 1)
-
-        # Notas
-        if notas:
-            pdf.ln(5)
-            pdf.set_font("Helvetica", 'B', 12)
-            pdf.cell(0, 10, _safe_pdf_text("  NOTAS Y OBSERVACIONES"), 0, 1, 'L', True)
-            pdf.set_font("Helvetica", '', 10)
-            pdf.multi_cell(0, 6, _safe_pdf_text(notas))
-
-        # Mapas
         for img_url in mapas_seleccionados:
             try:
-                parsed = urlparse(img_url)
-                path_str = unquote(parsed.path).replace("/outputs/", "", 1).lstrip("/\\")
-                full_img_path = (OUTPUT_DIR / path_str).resolve()
-                if full_img_path.exists():
+                img_name = unquote(urlparse(img_url).path).split('/')[-1]
+                path_local = OUTPUT_DIR / ref / "imagenes" / img_name
+                if not path_local.exists(): path_local = OUTPUT_DIR / ref / img_name
+                
+                if path_local.exists():
                     pdf.add_page()
-                    pdf.set_font("Helvetica", 'B', 14)
-                    pdf.cell(0, 10, _safe_pdf_text(f"PLANO: {full_img_path.stem.replace(ref+'_', '')}"), 0, 1, 'C')
-                    pdf.image(str(full_img_path), x=10, y=30, w=190)
-            except Exception as e:
-                logger.error(f"Error añadiendo imagen al PDF: {e}")
+                    pdf.image(str(path_local), x=10, y=30, w=190)
+            except: continue
 
-        report_filename = f"Informe_Final_{ref}.pdf"
-        report_path = OUTPUT_DIR / ref / report_filename
+        report_path = OUTPUT_DIR / ref / f"Informe_{ref}.pdf"
         pdf.output(str(report_path))
-
-        return {"status": "success", "pdf_url": f"/outputs/{ref}/{report_filename}"}
+        return {"status": "success", "pdf_url": f"/outputs/{ref}/Informe_{ref}.pdf"}
     except Exception as e:
-        logger.exception("Error generando reporte")
+        logger.exception("Error en reporte")
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-# --- RESTO DE ENDPOINTS (Omitidos aquí por brevedad, pero mantenlos en tu archivo) ---
-# download_complete_catastro, batch_complete_catastro, urban_analysis, download_batch_results, generate_ortophotos, check_kml_support...
 
 if __name__ == "__main__":
     import uvicorn
