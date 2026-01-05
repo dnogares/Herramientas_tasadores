@@ -51,7 +51,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 if os.getenv("DOCKER_ENV"):
     CAPAS_DIR = Path("/app/capas")
-        OUTPUT_DIR = Path("/app/outputs")
+            OUTPUT_DIR = Path("/app/outputs")
 else:
     h_data = Path("H:/data")
     if h_data.exists():
