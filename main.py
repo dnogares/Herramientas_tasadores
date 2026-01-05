@@ -405,8 +405,8 @@ try:                    # Usar XML parser para KML (no requiere driver GDAL)
                     
                     # Crear GeoDataFrame desde las geometrías
                     gdf = gpd.GeoDataFrame({'geometry': polygons}, crs="EPSG:4326")
-            if gdf.crs is None:
-                gdf = gdf.set_crs("EPSG:4326")
+                if gdf.crs is None:
+                    gdf = gdf.set_crs("EPSG:4326")
             gdf = gdf.to_crs("EPSG:25830")             # Unificar geometría si es multi-geometría
                             geom = unary_union(gdf.geometry)
                         gdfs.append(geom)
