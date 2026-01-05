@@ -204,6 +204,240 @@ async def generate_ortophotos(payload: dict = Body(...)):
         logger.error(f"Error generando ortofotos: {e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
+
+@app.post("/api/analisis/vectorial")
+async def analizar_vectorial(payload: dict = Body(...)):
+    """Ejecuta análisis vectorial con capas locales"""
+    ref = payload.get("referencia")
+    if not ref:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Falta referencia"})
+
+    try:
+        # 1. Obtener datos catastrales primero
+        data = urban_engine.obtener_datos_catastrales(ref)
+        if data.get("status") != "success":
+            return JSONResponse(status_code=500, content=data)
+
+        kml_path = data.get("kml")
+        if not kml_path or not Path(kml_path).exists():
+            return JSONResponse(
+                status_code=500, 
+                content={"status": "error", "message": "No se pudo generar geometría de la parcela"}
+            )
+
+        # 2. Ejecutar análisis vectorial
+        resultados = vector_engine.ejecutar_analisis_completo(ref, kml_path)
+        
+        return {
+            "status": "success",
+            "referencia": ref,
+            "analisis_vectorial": resultados
+        }
+
+    except Exception as e:
+        logger.exception(f"Error en análisis vectorial para {ref}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/catastro/descarga-completa")
+async def descarga_completa(payload: dict = Body(...)):
+    """Descarga completa usando CatastroCompleteDownloader"""
+    ref = payload.get("referencia")
+    if not ref:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Falta referencia"})
+
+    try:
+        resultado = catastro_complete.descargar_todo_completo(ref)
+        
+        return {
+            "status": "success",
+            "resultado": resultado
+        }
+
+    except Exception as e:
+        logger.exception(f"Error en descarga completa para {ref}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/catastro/descarga-basica")
+async def descarga_basica(payload: dict = Body(...)):
+    """Descarga básica usando CatastroDownloader"""
+    ref = payload.get("referencia")
+    if not ref:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Falta referencia"})
+
+    try:
+        resultado = catastro_engine.descargar_todo_completo(ref)
+        
+        return {
+            "status": "success",
+            "resultado": resultado
+        }
+
+    except Exception as e:
+        logger.exception(f"Error en descarga básica para {ref}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+
+@app.post("/api/analisis/lote")
+async def analizar_lote(file: UploadFile = File(...)):
+    """Procesa un archivo con múltiples referencias catastrales"""
+    try:
+        # Guardar archivo temporalmente
+        temp_path = OUTPUT_DIR / f"temp_lote_{file.filename}"
+        content = await file.read()
+        temp_path.write_bytes(content)
+
+        # Procesar lote
+        resultados = urban_engine.procesar_lote_referencias(str(temp_path))
+        
+        # Limpiar archivo temporal
+        temp_path.unlink()
+        
+        return {
+            "status": "success",
+            "total_procesadas": len(resultados),
+            "resultados": resultados
+        }
+
+    except Exception as e:
+        logger.exception("Error procesando lote")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/capas/disponibles")
+async def listar_capas_disponibles():
+    """Lista todas las capas vectoriales disponibles en H:/data"""
+    try:
+        capas = []
+        
+        if CAPAS_DIR.exists():
+            for carpeta in CAPAS_DIR.iterdir():
+                if carpeta.is_dir():
+                    shp_files = list(carpeta.glob("*.shp"))
+                    if shp_files:
+                        capas.append({
+                            "nombre": carpeta.name,
+                            "ruta": str(carpeta),
+                            "archivos_shp": len(shp_files)
+                        })
+        
+        return {
+            "status": "success",
+            "total_capas": len(capas),
+            "capas": capas,
+            "directorio_base": str(CAPAS_DIR)
+        }
+        
+    except Exception as e:
+        logger.exception("Error listando capas")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/sistema/estado")
+async def obtener_estado_sistema():
+    """Devuelve información del sistema y módulos disponibles"""
+    try:
+        # Verificar disponibilidad de módulos
+        modulos = {
+            "geopandas": True,  # Asumido disponible
+            "pillow": True,
+            "matplotlib": True
+        }
+        
+        # Contar referencias procesadas
+        total_refs = len([p for p in OUTPUT_DIR.iterdir() if p.is_dir()])
+        
+        # Verificar capas locales
+        capas_locales = local_layers.get_capas_info()
+        
+        return {
+            "status": "success",
+            "sistema": {
+                "version": "5.0.26-PRO",
+                "puerto": PORT,
+                "debug": DEBUG,
+                "directorio_outputs": str(OUTPUT_DIR),
+                "directorio_capas": str(CAPAS_DIR)
+            },
+            "modulos_disponibles": modulos,
+            "estadisticas": {
+                "referencias_procesadas": total_refs,
+                "capas_locales": capas_locales["total_capas"]
+            },
+            "capas_info": capas_locales
+        }
+        
+    except Exception as e:
+        logger.exception("Error obteniendo estado del sistema")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/api/debug/referencia/{ref}")
+async def debug_referencia(ref: str):
+    """Endpoint de debugging para verificar archivos de una referencia"""
+    try:
+        ref_dir = OUTPUT_DIR / ref
+        
+        if not ref_dir.exists():
+            return {
+                "status": "not_found",
+                "referencia": ref,
+                "mensaje": "Carpeta no existe"
+            }
+        
+        archivos = {
+            "imagenes": [],
+            "geometrias": [],
+            "datos": [],
+            "ortophotos": []
+        }
+        
+        for item in ref_dir.rglob("*"):
+            if item.is_file():
+                categoria = item.parent.name if item.parent != ref_dir else "raiz"
+                
+                if categoria not in archivos:
+                    archivos[categoria] = []
+                
+                archivos[categoria].append({
+                    "nombre": item.name,
+                    "tamaño": item.stat().st_size,
+                    "ruta_relativa": str(item.relative_to(OUTPUT_DIR))
+                })
+        
+        return {
+            "status": "success",
+            "referencia": ref,
+            "carpeta": str(ref_dir),
+            "archivos": archivos
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error en debug para {ref}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+
 if __name__ == "__main__":
     import uvicorn
     host = "0.0.0.0" if os.getenv("DOCKER_ENV") else "127.0.0.1"
